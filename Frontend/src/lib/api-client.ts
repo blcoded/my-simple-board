@@ -57,10 +57,21 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const response = await fetch(url, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers,
+    });
+  } catch (err) {
+    const msg =
+      err instanceof Error && (err.message === "Failed to fetch" || err.message.includes("NetworkError"))
+        ? `Cannot connect to backend at ${baseUrl}. Please ensure the backend is running on port 8000.`
+        : err instanceof Error
+        ? err.message
+        : `Network error connecting to ${baseUrl}`;
+    throw new Error(msg);
+  }
 
   if (response.status === 204) {
     return {} as T;
