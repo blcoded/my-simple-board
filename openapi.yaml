@@ -1,0 +1,533 @@
+openapi: 3.0.3
+info:
+  title: Mini Personal Kanban API
+  description: >-
+    RESTful API specification for the Mini Personal Kanban board application.
+    Supports single-board personal task management with authentication,
+    fixed columns (Ideas, To Do, In Progress, Done), priority levels,
+    due dates, drag-and-drop reordering/column movement, and clearing completed tasks.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+  - url: /api
+    description: Relative API root
+
+tags:
+  - name: Authentication
+    description: User registration, login, session inspection, and logout.
+  - name: Tasks
+    description: CRUD operations, column positioning, and task lifecycle management.
+
+paths:
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register a new user
+      description: Creates a new user account with an empty personal Kanban board.
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthCredentials'
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid input or user already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: Sign in user
+      description: Authenticates user credentials and returns user details along with an authentication token or sets a session cookie.
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthCredentials'
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid email or password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: Sign out user
+      description: Terminates the current authenticated session.
+      operationId: logout
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Successfully signed out
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Successfully signed out.
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/session:
+    get:
+      tags:
+        - Authentication
+      summary: Get current session
+      description: Returns the currently authenticated user session or null if unauthenticated.
+      operationId: getSession
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Current user profile or null
+          content:
+            application/json:
+              schema:
+                type: object
+                nullable: true
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tasks:
+    get:
+      tags:
+        - Tasks
+      summary: List all tasks
+      description: Returns all tasks for the authenticated user's board, ordered by status and position.
+      operationId: listTasks
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        '200':
+          description: List of tasks on the user's board
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    post:
+      tags:
+        - Tasks
+      summary: Create a new task
+      description: Creates a new task placed at the bottom of the specified column.
+      operationId: createTask
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskInput'
+      responses:
+        '201':
+          description: Task successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: Validation error (e.g. missing title)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tasks/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Unique ID of the task
+        schema:
+          type: string
+          example: task-1741914600000
+
+    get:
+      tags:
+        - Tasks
+      summary: Get task by ID
+      description: Retrieves details of a specific task.
+      operationId: getTaskById
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Task found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    patch:
+      tags:
+        - Tasks
+      summary: Update a task
+      description: Updates fields of an existing task (title, description, dueDate, priority, or status).
+      operationId: updateTask
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskInput'
+      responses:
+        '200':
+          description: Task updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          description: Invalid update payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Tasks
+      summary: Delete a task
+      description: Permanently removes a task from the user's board.
+      operationId: deleteTask
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Task deleted successfully
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tasks/{id}/move:
+    post:
+      tags:
+        - Tasks
+      summary: Move and reorder task
+      description: Moves a task to a target column and/or reorders it relative to a target task.
+      operationId: moveTask
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique ID of the task to move
+          schema:
+            type: string
+            example: task-1741914600000
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MoveTaskInput'
+      responses:
+        '200':
+          description: Updated list of all tasks reflecting new positions and statuses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+        '400':
+          description: Invalid status or destination
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /tasks/completed:
+    delete:
+      tags:
+        - Tasks
+      summary: Clear completed tasks
+      description: Permanently removes all tasks residing in the "done" column for the authenticated user.
+      operationId: clearCompleted
+      security:
+        - bearerAuth: []
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Completed tasks successfully cleared
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Bearer token authentication
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: session_token
+      description: Session cookie authentication
+
+  schemas:
+    TaskStatus:
+      type: string
+      enum:
+        - ideas
+        - todo
+        - progress
+        - done
+      description: Four fixed Kanban columns
+
+    Priority:
+      type: string
+      enum:
+        - high
+        - medium
+        - low
+      default: medium
+      description: Task priority level
+
+    User:
+      type: object
+      required:
+        - id
+        - email
+      properties:
+        id:
+          type: string
+          example: usr_ada_123
+        email:
+          type: string
+          format: email
+          example: ada@example.com
+
+    AuthCredentials:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: ada@example.com
+        password:
+          type: string
+          format: password
+          minLength: 4
+          example: focus
+
+    AuthResponse:
+      type: object
+      required:
+        - user
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        token:
+          type: string
+          description: JWT session token (if token-based auth is used)
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+    Task:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - dueDate
+        - priority
+        - status
+        - position
+      properties:
+        id:
+          type: string
+          example: task-1741914600000
+        title:
+          type: string
+          example: Wire drag-and-drop
+        description:
+          type: string
+          example: Reorder within a column plus cross-lane moves.
+        dueDate:
+          type: string
+          example: '2026-03-14'
+          description: ISO date string (YYYY-MM-DD) or empty string if no due date is set.
+        priority:
+          $ref: '#/components/schemas/Priority'
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        position:
+          type: integer
+          minimum: 0
+          example: 0
+          description: Zero-based position ordering within the column.
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-03-14T10:30:00.000Z'
+          description: Timestamp when the task entered the 'done' status. Cleared if moved out of 'done'.
+
+    CreateTaskInput:
+      type: object
+      required:
+        - title
+        - status
+      properties:
+        title:
+          type: string
+          minLength: 1
+          example: Sketch onboarding flow
+        description:
+          type: string
+          default: ''
+          example: Map the first three screens before writing any code.
+        dueDate:
+          type: string
+          default: ''
+          example: '2026-03-20'
+        priority:
+          $ref: '#/components/schemas/Priority'
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+
+    UpdateTaskInput:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          example: Updated title
+        description:
+          type: string
+          example: Updated description
+        dueDate:
+          type: string
+          example: '2026-03-25'
+        priority:
+          $ref: '#/components/schemas/Priority'
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+
+    MoveTaskInput:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+          description: The target column status
+        targetId:
+          type: string
+          description: ID of the task before which this task should be placed. If omitted, appends to bottom.
+          example: task-tokens
+        position:
+          type: integer
+          minimum: 0
+          description: Alternative explicit position index within target column.
+          example: 1
+
+    ErrorResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          example: That task is no longer available.
+        code:
+          type: string
+          example: NOT_FOUND
+        statusCode:
+          type: integer
+          example: 404

@@ -1,0 +1,22 @@
+# Python
+.venv/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+.npm
+dist/
+build/
+
+# Environment variables & editor files
+.env
+.env.local
+.DS_Store
+*.swp
+*.swo
+.vscode/
+.idea/
