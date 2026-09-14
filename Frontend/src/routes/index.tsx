@@ -55,13 +55,35 @@ function KordaApp() {
 
   useEffect(() => {
     let active = true;
-    Promise.all([apiClient.getSession(), apiClient.listTasks()]).then(([session, nextTasks]) => {
-      if (!active) return;
-      setUser(session);
-      setTasks(nextTasks);
-      setLoading(false);
-    });
-    return () => { active = false; };
+    async function init() {
+      try {
+        const session = await apiClient.getSession();
+        if (!active) return;
+        setUser(session);
+        if (session) {
+          const nextTasks = await apiClient.listTasks();
+          if (!active) return;
+          setTasks(nextTasks);
+        } else {
+          setTasks([]);
+        }
+      } catch (error) {
+        console.error("Failed to initialize board:", error);
+        if (active) {
+          setUser(null);
+          setTasks([]);
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    init();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const visibleTasks = useMemo(() => {
@@ -75,7 +97,11 @@ function KordaApp() {
   }, [dueFilter, priorityFilter, search, tasks]);
 
   async function refreshTasks() {
-    setTasks(await apiClient.listTasks());
+    try {
+      setTasks(await apiClient.listTasks());
+    } catch (error) {
+      console.error("Failed to refresh tasks:", error);
+    }
   }
 
   async function handleMove(id: string, status: TaskStatus, targetId?: string) {
@@ -91,12 +117,27 @@ function KordaApp() {
   async function handleSignOut() {
     await apiClient.signOut();
     setUser(null);
+    setTasks([]);
     toast.success("You’re signed out.");
   }
 
   if (loading) return <LoadingScreen />;
   if (!user) {
-    return <AuthScreen mode={authMode} onModeChange={setAuthMode} onSignedIn={setUser} />;
+    return (
+      <AuthScreen
+        mode={authMode}
+        onModeChange={setAuthMode}
+        onSignedIn={async (signedInUser) => {
+          setUser(signedInUser);
+          try {
+            const nextTasks = await apiClient.listTasks();
+            setTasks(nextTasks);
+          } catch (err) {
+            console.error("Failed to load tasks after sign in:", err);
+          }
+        }}
+      />
+    );
   }
 
   const openTasks = tasks.filter((task) => task.status !== "done").length;

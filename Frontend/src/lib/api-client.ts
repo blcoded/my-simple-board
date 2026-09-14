@@ -157,7 +157,14 @@ export const apiClient = {
   },
 
   async listTasks(): Promise<Task[]> {
-    return await request<Task[]>("/api/tasks");
+    const token = getToken();
+    if (!token) return [];
+    try {
+      return await request<Task[]>("/api/tasks");
+    } catch (error) {
+      console.warn("Could not fetch tasks:", error);
+      return [];
+    }
   },
 
   async createTask(input: Omit<Task, "id" | "position" | "completedAt">): Promise<Task> {
