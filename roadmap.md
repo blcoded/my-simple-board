@@ -1,3 +1,0 @@
-- [ ] Correct mock user board isolation and task ordering
-- [ ] Handle failed task mutations without leaving stale UI state
-- [ ] Verify production build and core board interactions
