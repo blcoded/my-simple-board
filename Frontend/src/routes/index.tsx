@@ -337,8 +337,44 @@ function LoadingScreen() { return <main className="grid min-h-screen place-items
 function PriorityBadge({ priority }: { priority: Priority }) { return <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${priority === "high" ? "border-primary/40 text-primary" : priority === "medium" ? "border-border text-muted-foreground" : "border-border text-muted-foreground/80"}`}>{priority === "medium" ? "Med" : priority}</span>; }
 function FilterSelect<T extends string>({ value, onChange, options, label }: { value: T; onChange: (value: T) => void; options: T[]; label: string }) { return <div className="relative"><select aria-label={`${label} filter`} value={value} onChange={(event) => onChange(event.target.value as T)} className="h-9 appearance-none rounded-full border border-border bg-card py-1.5 pl-3 pr-8 text-xs font-semibold text-foreground outline-none transition focus:ring-2 focus:ring-primary/30">{options.map((option) => <option key={option} value={option}>{option === "all" ? `${label} · All` : option.charAt(0).toUpperCase() + option.slice(1)}</option>)}</select><ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" /></div>; }
 type DueFilter = "all" | "overdue" | "today" | "upcoming" | "none";
-function getDueState(date: string): DueFilter { if (!date) return "none"; const today = new Date(); const due = new Date(`${date}T00:00:00`); const now = new Date(`${today.toISOString().slice(0, 10)}T00:00:00`); if (due < now) return "overdue"; if (due.getTime() === now.getTime()) return "today"; return "upcoming"; }
-function dueLabel(task: Task, state: DueFilter) { if (task.status === "done") return `✓ Done ${task.completedAt ? formatDate(task.completedAt) : ""}`; if (state === "overdue") return "Overdue"; if (state === "today") return "Due today"; return task.dueDate ? "Upcoming" : "No date"; }
-function formatDate(date: string) { return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(`${date}T00:00:00`)); }
+function getDueState(date: string): DueFilter {
+  if (!date) return "none";
+  try {
+    const today = new Date();
+    const dateStr = date.includes("T") ? date.slice(0, 10) : date;
+    const due = new Date(`${dateStr}T00:00:00`);
+    const now = new Date(`${today.toISOString().slice(0, 10)}T00:00:00`);
+    if (isNaN(due.getTime()) || isNaN(now.getTime())) return "none";
+    if (due < now) return "overdue";
+    if (due.getTime() === now.getTime()) return "today";
+    return "upcoming";
+  } catch {
+    return "none";
+  }
+}
+function dueLabel(task: Task, state: DueFilter) {
+  if (task.status === "done") {
+    const formatted = task.completedAt ? formatDate(task.completedAt) : "";
+    return formatted ? `✓ Done ${formatted}` : "✓ Done";
+  }
+  if (state === "overdue") return "Overdue";
+  if (state === "today") return "Due today";
+  return task.dueDate ? "Upcoming" : "No date";
+}
+function formatDate(date: string): string {
+  if (!date) return "";
+  try {
+    const cleanDate = date.includes("T") ? date : `${date}T00:00:00`;
+    const parsed = new Date(cleanDate);
+    if (isNaN(parsed.getTime())) {
+      const direct = new Date(date);
+      if (isNaN(direct.getTime())) return date;
+      return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(direct);
+    }
+    return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(parsed);
+  } catch {
+    return date;
+  }
+}
 function labelForStatus(status: TaskStatus) { return columns.find((column) => column.id === status)?.label ?? status; }
 function initials(email: string) { return (email.split("@")[0] ?? "").slice(0, 2).toUpperCase(); }
