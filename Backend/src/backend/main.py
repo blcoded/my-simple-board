@@ -1,9 +1,18 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from backend.config import CORS_ORIGINS
 from backend.routers import auth, tasks
+from backend.store import store
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    store.init_db()
+    yield
+
 
 app = FastAPI(
     title="Mini Personal Kanban API",
@@ -14,6 +23,7 @@ app = FastAPI(
         "due dates, drag-and-drop reordering/column movement, and clearing completed tasks."
     ),
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

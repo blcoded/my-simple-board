@@ -13,3 +13,10 @@ CORS_ORIGINS = [
     "http://127.0.0.1:8080",
     "*",
 ]
+
+# Database configuration
+from pathlib import Path
+
+DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent.parent / "kanban.db"
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DEFAULT_DB_PATH.as_posix()}")
+

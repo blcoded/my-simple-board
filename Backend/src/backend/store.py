@@ -1,164 +1,217 @@
-import copy
-import threading
 import time
+import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Optional
+from typing import List, Optional
+
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
 from backend.auth import hash_password
+from backend.database import Base, SessionLocal
+from backend.database import engine as default_engine
 from backend.models import Priority, Task, TaskStatus, User
-
 
 # Precompute demo hash once at module load to avoid repetitive slow bcrypt hashing on reset
 DEMO_PASSWORD_HASH = hash_password("focus")
 
 
-class InMemoryStore:
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self.users: Dict[str, User] = {}
-        self.users_by_email: Dict[str, User] = {}
-        self.tasks_by_user: Dict[str, List[Task]] = {}
-        self._seed()
+class DatabaseStore:
+    def __init__(self, engine=None, session_factory=None) -> None:
+        if engine is not None:
+            self.engine = engine
+        elif not hasattr(self, "engine"):
+            self.engine = default_engine
 
-    def _seed(self) -> None:
+        if session_factory is not None:
+            self.session_factory = session_factory
+        elif not hasattr(self, "session_factory"):
+            self.session_factory = SessionLocal
+
+        if not getattr(self, "_is_initialized", False):
+            self.init_db()
+            self._is_initialized = True
+        else:
+            self.reset_db()
+
+    def init_db(self) -> None:
+        Base.metadata.create_all(bind=self.engine)
+        with self.session_factory() as session:
+            self._seed(session)
+
+    def reset_db(self) -> None:
+        Base.metadata.drop_all(bind=self.engine)
+        Base.metadata.create_all(bind=self.engine)
+        with self.session_factory() as session:
+            self._seed(session)
+
+    def reset(self) -> None:
+        self.reset_db()
+
+    def _seed(self, session: Session) -> None:
         demo_email = "ada@example.com"
-        demo_user = User(
-            id=demo_email,
-            email=demo_email,
-            password_hash=DEMO_PASSWORD_HASH,
-        )
-        self.users[demo_user.id] = demo_user
-        self.users_by_email[demo_email] = demo_user
+        demo_user = session.get(User, demo_email)
+        if not demo_user:
+            demo_user = User(
+                id=demo_email,
+                email=demo_email,
+                password_hash=DEMO_PASSWORD_HASH,
+            )
+            session.add(demo_user)
+            session.flush()
 
-        seed_tasks = [
-            Task(
-                id="task-onboarding",
-                title="Sketch onboarding flow",
-                description="Map the first three screens before writing any code.",
-                dueDate="2026-03-03",
-                priority=Priority.high,
-                status=TaskStatus.ideas,
-                position=0,
-            ),
-            Task(
-                id="task-tokens",
-                title="Audit color tokens",
-                description="Consolidate the 40 shades into a single scale.",
-                dueDate="2026-03-15",
-                priority=Priority.medium,
-                status=TaskStatus.ideas,
-                position=1,
-            ),
-            Task(
-                id="task-drag-physics",
-                title="Read on drag physics",
-                description="Two articles on easing curves for cards.",
-                dueDate="",
-                priority=Priority.low,
-                status=TaskStatus.ideas,
-                position=2,
-            ),
-            Task(
-                id="task-auth",
-                title="Build auth scaffold",
-                description="Routes, mock backend calls, session state.",
-                dueDate="2026-03-12",
-                priority=Priority.high,
-                status=TaskStatus.todo,
-                position=0,
-            ),
-            Task(
-                id="task-dnd",
-                title="Wire drag-and-drop",
-                description="Reorder within a column plus cross-lane moves.",
-                dueDate="2026-03-14",
-                priority=Priority.medium,
-                status=TaskStatus.todo,
-                position=1,
-            ),
-            Task(
-                id="task-empty-states",
-                title="Trim copy in empty states",
-                description="Keep each under nine words.",
-                dueDate="",
-                priority=Priority.low,
-                status=TaskStatus.todo,
-                position=2,
-            ),
-            Task(
-                id="task-card",
-                title="Design the task card",
-                description="Finalize priority chips and due-date states.",
-                dueDate="2026-03-10",
-                priority=Priority.high,
-                status=TaskStatus.progress,
-                position=0,
-            ),
-            Task(
-                id="task-api",
-                title="Set up mock API",
-                description="Stubbed endpoints for tasks and auth.",
-                dueDate="2026-03-09",
-                priority=Priority.medium,
-                status=TaskStatus.done,
-                position=0,
-                completedAt="2026-03-09T10:00:00.000Z",
-            ),
-            Task(
-                id="task-type",
-                title="Pick type pairing",
-                description="Space Grotesk for display, Inter for body.",
-                dueDate="2026-03-08",
-                priority=Priority.low,
-                status=TaskStatus.done,
-                position=1,
-                completedAt="2026-03-08T10:00:00.000Z",
-            ),
-        ]
-        self.tasks_by_user[demo_user.id] = seed_tasks
+        existing_tasks_count = session.scalar(
+            select(func.count()).select_from(Task).where(Task.user_id == demo_user.id)
+        )
+        if existing_tasks_count == 0:
+            seed_tasks = [
+                Task(
+                    id="task-onboarding",
+                    user_id=demo_user.id,
+                    title="Sketch onboarding flow",
+                    description="Map the first three screens before writing any code.",
+                    dueDate="2026-03-03",
+                    priority=Priority.high,
+                    status=TaskStatus.ideas,
+                    position=0,
+                ),
+                Task(
+                    id="task-tokens",
+                    user_id=demo_user.id,
+                    title="Audit color tokens",
+                    description="Consolidate the 40 shades into a single scale.",
+                    dueDate="2026-03-15",
+                    priority=Priority.medium,
+                    status=TaskStatus.ideas,
+                    position=1,
+                ),
+                Task(
+                    id="task-drag-physics",
+                    user_id=demo_user.id,
+                    title="Read on drag physics",
+                    description="Two articles on easing curves for cards.",
+                    dueDate="",
+                    priority=Priority.low,
+                    status=TaskStatus.ideas,
+                    position=2,
+                ),
+                Task(
+                    id="task-auth",
+                    user_id=demo_user.id,
+                    title="Build auth scaffold",
+                    description="Routes, mock backend calls, session state.",
+                    dueDate="2026-03-12",
+                    priority=Priority.high,
+                    status=TaskStatus.todo,
+                    position=0,
+                ),
+                Task(
+                    id="task-dnd",
+                    user_id=demo_user.id,
+                    title="Wire drag-and-drop",
+                    description="Reorder within a column plus cross-lane moves.",
+                    dueDate="2026-03-14",
+                    priority=Priority.medium,
+                    status=TaskStatus.todo,
+                    position=1,
+                ),
+                Task(
+                    id="task-empty-states",
+                    user_id=demo_user.id,
+                    title="Trim copy in empty states",
+                    description="Keep each under nine words.",
+                    dueDate="",
+                    priority=Priority.low,
+                    status=TaskStatus.todo,
+                    position=2,
+                ),
+                Task(
+                    id="task-card",
+                    user_id=demo_user.id,
+                    title="Design the task card",
+                    description="Finalize priority chips and due-date states.",
+                    dueDate="2026-03-10",
+                    priority=Priority.high,
+                    status=TaskStatus.progress,
+                    position=0,
+                ),
+                Task(
+                    id="task-api",
+                    user_id=demo_user.id,
+                    title="Set up mock API",
+                    description="Stubbed endpoints for tasks and auth.",
+                    dueDate="2026-03-09",
+                    priority=Priority.medium,
+                    status=TaskStatus.done,
+                    position=0,
+                    completedAt="2026-03-09T10:00:00.000Z",
+                ),
+                Task(
+                    id="task-type",
+                    user_id=demo_user.id,
+                    title="Pick type pairing",
+                    description="Space Grotesk for display, Inter for body.",
+                    dueDate="2026-03-08",
+                    priority=Priority.low,
+                    status=TaskStatus.done,
+                    position=1,
+                    completedAt="2026-03-08T10:00:00.000Z",
+                ),
+            ]
+            session.add_all(seed_tasks)
+        session.commit()
 
     def get_user_by_id(self, user_id: str) -> Optional[User]:
-        with self._lock:
-            return self.users.get(user_id)
+        with self.session_factory() as session:
+            return session.get(User, user_id)
 
     def get_user_by_email(self, email: str) -> Optional[User]:
-        with self._lock:
-            return self.users_by_email.get(email.strip().lower())
+        with self.session_factory() as session:
+            norm_email = email.strip().lower()
+            return session.scalar(select(User).where(User.email == norm_email))
 
     def create_user(self, email: str, password_hash: str) -> User:
-        with self._lock:
+        with self.session_factory() as session:
             norm_email = email.strip().lower()
             user = User(
                 id=norm_email,
                 email=norm_email,
                 password_hash=password_hash,
             )
-            self.users[user.id] = user
-            self.users_by_email[norm_email] = user
-            self.tasks_by_user[user.id] = []
+            session.add(user)
+            session.commit()
             return user
 
-    def _normalize_positions_locked(self, user_id: str) -> None:
-        tasks = self.tasks_by_user.get(user_id, [])
+    def _normalize_positions(self, session: Session, user_id: str) -> None:
         for col in TaskStatus:
-            col_tasks = [t for t in tasks if t.status == col]
-            col_tasks.sort(key=lambda t: t.position)
+            col_tasks = list(
+                session.scalars(
+                    select(Task)
+                    .where(Task.user_id == user_id, Task.status == col)
+                    .order_by(Task.position, Task.id)
+                ).all()
+            )
             for idx, t in enumerate(col_tasks):
-                t.position = idx
+                if t.position != idx:
+                    t.position = idx
+        session.flush()
 
     def get_tasks(self, user_id: str) -> List[Task]:
-        with self._lock:
-            tasks = self.tasks_by_user.get(user_id, [])
-            self._normalize_positions_locked(user_id)
-            return [copy.deepcopy(t) for t in sorted(tasks, key=lambda x: (x.status.value, x.position))]
+        with self.session_factory() as session:
+            self._normalize_positions(session, user_id)
+            session.commit()
+            tasks = list(
+                session.scalars(
+                    select(Task).where(Task.user_id == user_id)
+                ).all()
+            )
+            tasks.sort(key=lambda x: (x.status.value, x.position))
+            return tasks
 
     def get_task(self, user_id: str, task_id: str) -> Optional[Task]:
-        with self._lock:
-            tasks = self.tasks_by_user.get(user_id, [])
-            for t in tasks:
-                if t.id == task_id:
-                    return copy.deepcopy(t)
-            return None
+        with self.session_factory() as session:
+            return session.scalar(
+                select(Task).where(Task.user_id == user_id, Task.id == task_id)
+            )
 
     def create_task(
         self,
@@ -169,19 +222,29 @@ class InMemoryStore:
         priority: Priority,
         status: TaskStatus,
     ) -> Task:
-        with self._lock:
-            if user_id not in self.tasks_by_user:
-                self.tasks_by_user[user_id] = []
-
-            tasks = self.tasks_by_user[user_id]
-            col_tasks = [t for t in tasks if t.status == status]
+        with self.session_factory() as session:
+            col_tasks = list(
+                session.scalars(
+                    select(Task)
+                    .where(Task.user_id == user_id, Task.status == status)
+                    .order_by(Task.position)
+                ).all()
+            )
             position = len(col_tasks)
 
             now_iso = datetime.now(timezone.utc).isoformat()
             completed_at = now_iso if status == TaskStatus.done else None
 
+            base_id = f"task-{int(time.time() * 1000)}"
+            task_id = base_id
+            counter = 1
+            while session.get(Task, task_id) is not None:
+                task_id = f"{base_id}-{counter}"
+                counter += 1
+
             task = Task(
-                id=f"task-{int(time.time() * 1000)}",
+                id=task_id,
+                user_id=user_id,
                 title=title.strip(),
                 description=description.strip(),
                 dueDate=due_date,
@@ -190,9 +253,11 @@ class InMemoryStore:
                 position=position,
                 completedAt=completed_at,
             )
-            tasks.append(task)
-            self._normalize_positions_locked(user_id)
-            return copy.deepcopy(task)
+            session.add(task)
+            session.flush()
+            self._normalize_positions(session, user_id)
+            session.commit()
+            return task
 
     def update_task(
         self,
@@ -204,39 +269,43 @@ class InMemoryStore:
         priority: Optional[Priority] = None,
         status: Optional[TaskStatus] = None,
     ) -> Optional[Task]:
-        with self._lock:
-            tasks = self.tasks_by_user.get(user_id, [])
-            target = None
-            for t in tasks:
-                if t.id == task_id:
-                    target = t
-                    break
-
-            if not target:
+        with self.session_factory() as session:
+            task = session.scalar(
+                select(Task).where(Task.user_id == user_id, Task.id == task_id)
+            )
+            if not task:
                 return None
 
             if title is not None:
-                target.title = title.strip()
+                task.title = title.strip()
             if description is not None:
-                target.description = description.strip()
+                task.description = description.strip()
             if due_date is not None:
-                target.dueDate = due_date
+                task.dueDate = due_date
             if priority is not None:
-                target.priority = priority
+                task.priority = priority
 
-            if status is not None and status != target.status:
-                old_status = target.status
-                target.status = status
+            if status is not None and status != task.status:
+                old_status = task.status
+                task.status = status
                 if status == TaskStatus.done and old_status != TaskStatus.done:
-                    target.completedAt = datetime.now(timezone.utc).isoformat()
+                    task.completedAt = datetime.now(timezone.utc).isoformat()
                 elif status != TaskStatus.done:
-                    target.completedAt = None
+                    task.completedAt = None
 
-                dest_tasks = [t for t in tasks if t.status == status and t.id != task_id]
-                target.position = len(dest_tasks)
-                self._normalize_positions_locked(user_id)
+                dest_tasks = list(
+                    session.scalars(
+                        select(Task)
+                        .where(Task.user_id == user_id, Task.status == status, Task.id != task_id)
+                        .order_by(Task.position)
+                    ).all()
+                )
+                task.position = len(dest_tasks)
+                session.flush()
+                self._normalize_positions(session, user_id)
 
-            return copy.deepcopy(target)
+            session.commit()
+            return task
 
     def move_task(
         self,
@@ -246,22 +315,23 @@ class InMemoryStore:
         target_id: Optional[str] = None,
         position: Optional[int] = None,
     ) -> Optional[List[Task]]:
-        with self._lock:
-            tasks = self.tasks_by_user.get(user_id, [])
-            moving_task = None
-            for t in tasks:
-                if t.id == task_id:
-                    moving_task = t
-                    break
-
+        with self.session_factory() as session:
+            moving_task = session.scalar(
+                select(Task).where(Task.user_id == user_id, Task.id == task_id)
+            )
             if not moving_task:
                 return None
 
             old_status = moving_task.status
 
             # Separate destination column tasks and other tasks
-            dest_tasks = [t for t in tasks if t.status == status and t.id != task_id]
-            dest_tasks.sort(key=lambda t: t.position)
+            dest_tasks = list(
+                session.scalars(
+                    select(Task)
+                    .where(Task.user_id == user_id, Task.status == status, Task.id != task_id)
+                    .order_by(Task.position)
+                ).all()
+            )
 
             insert_index = len(dest_tasks)
             if target_id:
@@ -285,36 +355,57 @@ class InMemoryStore:
 
             # Re-index old column if column changed
             if old_status != status:
-                old_col_tasks = [t for t in tasks if t.status == old_status and t.id != task_id]
-                old_col_tasks.sort(key=lambda t: t.position)
+                old_col_tasks = list(
+                    session.scalars(
+                        select(Task)
+                        .where(Task.user_id == user_id, Task.status == old_status, Task.id != task_id)
+                        .order_by(Task.position)
+                    ).all()
+                )
                 for idx, t in enumerate(old_col_tasks):
                     t.position = idx
 
-            # Rebuild user tasks with new destination list
-            remaining_tasks = [t for t in tasks if t.status != status and t.id != task_id]
-            self.tasks_by_user[user_id] = remaining_tasks + dest_tasks
-            self._normalize_positions_locked(user_id)
+            session.flush()
+            self._normalize_positions(session, user_id)
+            session.commit()
 
-            return [copy.deepcopy(t) for t in sorted(self.tasks_by_user[user_id], key=lambda x: (x.status.value, x.position))]
+            tasks = list(
+                session.scalars(
+                    select(Task).where(Task.user_id == user_id)
+                ).all()
+            )
+            tasks.sort(key=lambda x: (x.status.value, x.position))
+            return tasks
 
     def delete_task(self, user_id: str, task_id: str) -> bool:
-        with self._lock:
-            tasks = self.tasks_by_user.get(user_id, [])
-            initial_len = len(tasks)
-            self.tasks_by_user[user_id] = [t for t in tasks if t.id != task_id]
-            if len(self.tasks_by_user[user_id]) < initial_len:
-                self._normalize_positions_locked(user_id)
-                return True
-            return False
+        with self.session_factory() as session:
+            task = session.scalar(
+                select(Task).where(Task.user_id == user_id, Task.id == task_id)
+            )
+            if not task:
+                return False
+            session.delete(task)
+            session.flush()
+            self._normalize_positions(session, user_id)
+            session.commit()
+            return True
 
     def clear_completed(self, user_id: str) -> int:
-        with self._lock:
-            tasks = self.tasks_by_user.get(user_id, [])
-            active_tasks = [t for t in tasks if t.status != TaskStatus.done]
-            cleared_count = len(tasks) - len(active_tasks)
-            self.tasks_by_user[user_id] = active_tasks
-            self._normalize_positions_locked(user_id)
-            return cleared_count
+        with self.session_factory() as session:
+            done_tasks = list(
+                session.scalars(
+                    select(Task).where(Task.user_id == user_id, Task.status == TaskStatus.done)
+                ).all()
+            )
+            count = len(done_tasks)
+            for t in done_tasks:
+                session.delete(t)
+            session.flush()
+            self._normalize_positions(session, user_id)
+            session.commit()
+            return count
 
 
-store = InMemoryStore()
+SQLAlchemyStore = DatabaseStore
+InMemoryStore = DatabaseStore
+store = DatabaseStore()

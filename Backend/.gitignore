@@ -10,3 +10,7 @@ htmlcov/
 dist/
 build/
 .env
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3

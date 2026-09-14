@@ -20,3 +20,9 @@ build/
 *.swo
 .vscode/
 .idea/
+
+# Database
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3

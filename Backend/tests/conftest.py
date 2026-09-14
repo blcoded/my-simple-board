@@ -1,5 +1,9 @@
+import os
 import pytest
 from fastapi.testclient import TestClient
+
+# Ensure test suite runs on an isolated in-memory SQLite database
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
 from backend.main import app
 from backend.store import store
@@ -12,8 +16,8 @@ def client():
 
 @pytest.fixture(autouse=True)
 def reset_store():
-    # Reset and re-seed the in-memory store before each test
-    store.__init__()
+    # Reset and re-seed the database before each test
+    store.reset_db()
 
 
 @pytest.fixture
