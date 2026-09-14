@@ -14,7 +14,7 @@ export type Task = {
   priority: Priority;
   status: TaskStatus;
   position: number;
-  completedAt?: string;
+  completedAt?: string | undefined;
 };
 
 type MockState = {
