@@ -19,7 +19,7 @@ export type Task = {
 
 type MockState = {
   user: MockUser | null;
-  tasks: Task[];
+  boards: Record<string, Task[]>;
 };
 
 const seedTasks: Task[] = [
@@ -110,13 +110,17 @@ const seedTasks: Task[] = [
 
 let state: MockState = {
   user: { id: "demo-user", email: "ada@example.com" },
-  tasks: structuredClone(seedTasks),
+  boards: { "demo-user": structuredClone(seedTasks) },
 };
 
 const delay = (value: number) => new Promise((resolve) => setTimeout(resolve, value));
 
 function cloneTasks(tasks: Task[]) {
   return tasks.map((task) => ({ ...task }));
+}
+
+function currentTasks() {
+  return state.user ? state.boards[state.user.id] ?? [] : [];
 }
 
 function normalizePositions(tasks: Task[]) {
@@ -142,9 +146,11 @@ export const mockApi = {
     if (!email.trim() || password.trim().length < 4) {
       throw new Error("Enter an email and a password with at least four characters.");
     }
-    state.user = { id: email.trim().toLowerCase(), email: email.trim().toLowerCase() };
-    if (state.user.id !== "demo-user") {
-      state.tasks = structuredClone(seedTasks);
+    const normalizedEmail = email.trim().toLowerCase();
+    state.user = { id: normalizedEmail, email: normalizedEmail };
+    state.boards[normalizedEmail] ??= [];
+    if (normalizedEmail === "ada@example.com" && state.boards[normalizedEmail].length === 0) {
+      state.boards[normalizedEmail] = structuredClone(seedTasks);
     }
     return state.user;
   },
@@ -154,8 +160,9 @@ export const mockApi = {
     if (!email.includes("@") || password.trim().length < 4) {
       throw new Error("Use a valid email and a password with at least four characters.");
     }
-    state.user = { id: email.trim().toLowerCase(), email: email.trim().toLowerCase() };
-    state.tasks = [];
+    const normalizedEmail = email.trim().toLowerCase();
+    state.user = { id: normalizedEmail, email: normalizedEmail };
+    state.boards[normalizedEmail] = [];
     return state.user;
   },
 
@@ -166,27 +173,30 @@ export const mockApi = {
 
   async listTasks() {
     await delay(240);
-    return cloneTasks(state.tasks);
+    return cloneTasks(currentTasks());
   },
 
   async createTask(input: Omit<Task, "id" | "position" | "completedAt">) {
     await delay(260);
-    const position = state.tasks.filter((task) => task.status === input.status).length;
+    if (!state.user) throw new Error("Sign in to add a task.");
+    const tasks = currentTasks();
+    const position = tasks.filter((task) => task.status === input.status).length;
     const task: Task = {
       ...input,
       id: `task-${Date.now()}`,
       position,
       ...(input.status === "done" ? { completedAt: new Date().toISOString() } : {}),
     };
-    state.tasks = [...state.tasks, task];
+    state.boards[state.user.id] = [...tasks, task];
     return { ...task };
   },
 
   async updateTask(id: string, changes: Partial<Omit<Task, "id">>) {
     await delay(260);
-    const existing = state.tasks.find((task) => task.id === id);
+    const tasks = currentTasks();
+    const existing = tasks.find((task) => task.id === id);
     if (!existing) throw new Error("That task is no longer available.");
-    state.tasks = state.tasks.map((task) =>
+    state.boards[state.user?.id ?? ""] = tasks.map((task) =>
       task.id === id
         ? {
             ...task,
@@ -198,44 +208,41 @@ export const mockApi = {
           }
         : task,
     );
-    normalizePositions(state.tasks);
-    const updated = state.tasks.find((task) => task.id === id);
+    normalizePositions(currentTasks());
+    const updated = currentTasks().find((task) => task.id === id);
     if (!updated) throw new Error("That task is no longer available.");
     return { ...updated };
   },
 
   async moveTask(id: string, status: TaskStatus, targetId?: string) {
     await delay(180);
-    const tasks = cloneTasks(state.tasks);
+    if (!state.user) throw new Error("Sign in to move a task.");
+    const tasks = cloneTasks(currentTasks());
     const moving = tasks.find((task) => task.id === id);
     if (!moving) throw new Error("That task is no longer available.");
     const destination = tasks.filter((task) => task.status === status && task.id !== id);
-    const oldStatus = moving.status;
     const oldIndex = destination.findIndex((task) => task.id === targetId);
     const insertAt = oldIndex >= 0 ? oldIndex : destination.length;
     moving.status = status;
     moving.completedAt = status === "done" ? new Date().toISOString() : undefined;
     destination.splice(insertAt, 0, moving);
     const remaining = tasks.filter((task) => task.id !== id && task.status !== status);
-    const nextTasks = [...remaining, ...destination];
-    if (oldStatus === status) {
-      state.tasks = tasks;
-    } else {
-      state.tasks = nextTasks;
-    }
-    normalizePositions(state.tasks);
-    return cloneTasks(state.tasks);
+    state.boards[state.user.id] = [...remaining, ...destination];
+    normalizePositions(currentTasks());
+    return cloneTasks(currentTasks());
   },
 
   async deleteTask(id: string) {
     await delay(220);
-    state.tasks = state.tasks.filter((task) => task.id !== id);
-    normalizePositions(state.tasks);
+    if (!state.user) throw new Error("Sign in to delete a task.");
+    state.boards[state.user.id] = currentTasks().filter((task) => task.id !== id);
+    normalizePositions(currentTasks());
   },
 
   async clearCompleted() {
     await delay(260);
-    state.tasks = state.tasks.filter((task) => task.status !== "done");
-    normalizePositions(state.tasks);
+    if (!state.user) throw new Error("Sign in to clear completed tasks.");
+    state.boards[state.user.id] = currentTasks().filter((task) => task.status !== "done");
+    normalizePositions(currentTasks());
   },
 };
