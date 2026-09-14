@@ -130,3 +130,50 @@ def test_get_db_generator():
     with pytest.raises(StopIteration):
         next(gen)
 
+
+def test_database_url_env_resolution(monkeypatch):
+    """Verify get_database_url resolves DATABASE_URL and DB_URL environment variables."""
+    from backend.config import get_database_url
+
+    # 1. Standard DATABASE_URL
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:secret@localhost:5432/kanban")
+    assert get_database_url() == "postgresql://user:secret@localhost:5432/kanban"
+
+    # 2. Legacy Heroku postgres:// prefix normalization
+    monkeypatch.setenv("DATABASE_URL", "postgres://user:secret@localhost:5432/kanban")
+    assert get_database_url() == "postgresql://user:secret@localhost:5432/kanban"
+
+    # 3. Fallback to DB_URL if DATABASE_URL is not set
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("DB_URL", "mysql://user:secret@localhost:3306/kanban")
+    assert get_database_url() == "mysql://user:secret@localhost:3306/kanban"
+
+
+def test_database_agnostic_engine_options():
+    """Verify engine options are tailored per database dialect (e.g. SQLite vs PostgreSQL)."""
+    from backend.database import get_engine_options
+
+    # SQLite options
+    sqlite_opts = get_engine_options("sqlite:///path/to/test.db")
+    assert sqlite_opts["connect_args"]["check_same_thread"] is False
+    assert "pool_pre_ping" not in sqlite_opts
+
+    # SQLite in-memory options
+    mem_opts = get_engine_options("sqlite:///:memory:")
+    assert "poolclass" in mem_opts
+
+    # PostgreSQL / other database options
+    pg_opts = get_engine_options("postgresql://user:pass@localhost:5432/mydb")
+    assert "connect_args" not in pg_opts
+    assert pg_opts["pool_pre_ping"] is True
+    assert pg_opts["pool_recycle"] == 300
+
+
+def test_store_dynamic_configuration():
+    """Verify store can be reconfigured dynamically with a new database URL."""
+    test_store = DatabaseStore()
+    test_store.configure("sqlite:///:memory:")
+    assert "sqlite" in str(test_store.engine.url)
+    assert len(test_store.get_tasks("ada@example.com")) == 9
+
+

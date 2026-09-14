@@ -18,5 +18,26 @@ CORS_ORIGINS = [
 from pathlib import Path
 
 DEFAULT_DB_PATH = Path(__file__).resolve().parent.parent.parent / "kanban.db"
-DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DEFAULT_DB_PATH.as_posix()}")
+
+
+def get_database_url() -> str:
+    """Resolve and normalize database connection URL from environment variables.
+    
+    Supports DATABASE_URL or DB_URL environment variable, defaulting to SQLite.
+    Automatically normalizes cloud provider legacy postgres:// URLs to postgresql://.
+    """
+    url = os.getenv("DATABASE_URL") or os.getenv("DB_URL")
+    if not url:
+        return f"sqlite:///{DEFAULT_DB_PATH.as_posix()}"
+
+    url = url.strip()
+
+    # Normalize Heroku / cloud legacy postgres:// URLs to standard SQLAlchemy postgresql://
+    if url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql://", 1)
+
+    return url
+
+
+DATABASE_URL = get_database_url()
 

@@ -1,29 +1,47 @@
 import os
-from typing import Generator
+from typing import Any, Dict, Generator, Optional
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
-from backend.config import DATABASE_URL
+from backend.config import get_database_url
 
 
 class Base(DeclarativeBase):
     pass
 
 
-def create_db_engine(database_url: str) -> Engine:
-    connect_args = {}
-    engine_kwargs = {}
+def get_engine_options(database_url: str) -> Dict[str, Any]:
+    """Build database-agnostic engine options based on connection dialect."""
+    connect_args: Dict[str, Any] = {}
+    engine_kwargs: Dict[str, Any] = {}
 
-    if "sqlite" in database_url:
+    is_sqlite = database_url.startswith("sqlite")
+
+    if is_sqlite:
         connect_args["check_same_thread"] = False
         if ":memory:" in database_url:
             engine_kwargs["poolclass"] = StaticPool
+    else:
+        # Generic production RDBMS settings (e.g. PostgreSQL, MySQL)
+        engine_kwargs["pool_pre_ping"] = True
+        engine_kwargs["pool_recycle"] = int(os.getenv("DB_POOL_RECYCLE", "300"))
 
-    eng = create_engine(database_url, connect_args=connect_args, **engine_kwargs)
+    if connect_args:
+        engine_kwargs["connect_args"] = connect_args
 
-    if "sqlite" in database_url:
+    return engine_kwargs
+
+
+def create_db_engine(database_url: Optional[str] = None) -> Engine:
+    """Create a SQLAlchemy Engine with database-agnostic configuration."""
+    url = database_url or get_database_url()
+    engine_kwargs = get_engine_options(url)
+    eng = create_engine(url, **engine_kwargs)
+
+    # Attach SQLite-specific PRAGMAs only when using SQLite
+    if url.startswith("sqlite"):
         @event.listens_for(eng, "connect")
         def set_sqlite_pragma(dbapi_connection, connection_record):
             try:
@@ -36,7 +54,7 @@ def create_db_engine(database_url: str) -> Engine:
     return eng
 
 
-engine = create_db_engine(DATABASE_URL)
+engine = create_db_engine()
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,

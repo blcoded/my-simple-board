@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.auth import hash_password
-from backend.database import Base, SessionLocal
+from backend.database import Base, SessionLocal, create_db_engine
 from backend.database import engine as default_engine
 from backend.models import Priority, Task, TaskStatus, User
 
@@ -33,6 +33,25 @@ class DatabaseStore:
         else:
             self.reset_db()
 
+    def configure(self, database_url: Optional[str] = None, engine=None) -> None:
+        """Reconfigure the store with a new database URL or engine."""
+        from sqlalchemy.orm import sessionmaker
+
+        if engine is not None:
+            self.engine = engine
+        else:
+            self.engine = create_db_engine(database_url)
+
+        self.session_factory = sessionmaker(
+            autocommit=False,
+            autoflush=False,
+            expire_on_commit=False,
+            bind=self.engine,
+        )
+        self._is_initialized = False
+        self.init_db()
+        self._is_initialized = True
+
     def init_db(self) -> None:
         Base.metadata.create_all(bind=self.engine)
         with self.session_factory() as session:
@@ -46,6 +65,7 @@ class DatabaseStore:
 
     def reset(self) -> None:
         self.reset_db()
+
 
     def _seed(self, session: Session) -> None:
         demo_email = "ada@example.com"
