@@ -80,8 +80,12 @@ function KordaApp() {
 
   async function handleMove(id: string, status: TaskStatus, targetId?: string) {
     setDraggedTask(null);
-    await mockApi.moveTask(id, status, targetId);
-    await refreshTasks();
+    try {
+      await mockApi.moveTask(id, status, targetId);
+      await refreshTasks();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not move that task.");
+    }
   }
 
   async function handleSignOut() {
@@ -153,9 +157,13 @@ function KordaApp() {
                 onAdd={() => setTaskDialog({ mode: "create", status: column.id })}
                 onClear={async () => {
                   if (!window.confirm("Clear every completed task from the board?")) return;
-                  await mockApi.clearCompleted();
-                  await refreshTasks();
-                  toast.success("Completed tasks cleared.");
+                  try {
+                    await mockApi.clearCompleted();
+                    await refreshTasks();
+                    toast.success("Completed tasks cleared.");
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "Could not clear completed tasks.");
+                  }
                 }}
               />
             );
@@ -256,10 +264,15 @@ function TaskDialog({ state, onOpenChange, onSaved }: { state: { mode: "create" 
   async function remove() {
     if (!state.task || !window.confirm(`Delete “${state.task.title}”?`)) return;
     setSaving(true);
-    await mockApi.deleteTask(state.task.id);
-    toast.success("Task deleted.");
-    await onSaved();
-    setSaving(false);
+    try {
+      await mockApi.deleteTask(state.task.id);
+      toast.success("Task deleted.");
+      await onSaved();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not delete that task.");
+    } finally {
+      setSaving(false);
+    }
   }
   return <Dialog open={Boolean(state)} onOpenChange={onOpenChange}><DialogContent className="border-border bg-card sm:max-w-lg"><DialogHeader><DialogTitle className="font-display text-xl">{state.mode === "create" ? "Add task" : "Edit task"}</DialogTitle><DialogDescription>{state.mode === "create" ? `New task in ${labelForStatus(state.status)}.` : `${labelForStatus(state.status)} · edit the details below.`}</DialogDescription></DialogHeader><div className="flex flex-col gap-4"><Field label="Title"><Input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Name the next thing" /></Field><Field label="Description"><Textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Optional notes" rows={4} /></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="Due date"><div className="relative"><CalendarDays className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input type="date" value={dueDate} onChange={(event) => setDueDate(event.target.value)} className="pl-9" /></div></Field><Field label="Priority"><div className="grid grid-cols-3 gap-1 rounded-md border border-input bg-background p-1">{priorities.map((value) => <Button key={value} type="button" variant={priority === value ? "secondary" : "ghost"} size="sm" className={`h-8 capitalize ${priority === value ? "ring-1 ring-primary/30" : "text-muted-foreground"}`} onClick={() => setPriority(value)}>{value}</Button>)}</div></Field></div></div><DialogFooter className="mt-2 flex-row items-center justify-between sm:justify-between"><div>{state.mode === "edit" && <Button type="button" variant="ghost" className="px-0 text-destructive hover:text-destructive" onClick={remove} disabled={saving}><Trash2 /> Delete</Button>}</div><div className="flex gap-2"><Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button><Button type="button" onClick={save} disabled={saving}>{saving ? "Saving…" : "Save changes"}</Button></div></DialogFooter></DialogContent></Dialog>;
 }
