@@ -25,6 +25,9 @@ app.add_middleware(
 )
 
 
+from fastapi.exceptions import RequestValidationError
+
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     detail_message = str(exc.detail) if isinstance(exc.detail, str) else "An error occurred"
@@ -34,6 +37,18 @@ async def http_exception_handler(request: Request, exc: HTTPException):
             "message": detail_message,
             "detail": exc.detail,
             "statusCode": exc.status_code,
+        },
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={
+            "message": "Validation error: please check your input.",
+            "detail": exc.errors(),
+            "statusCode": 422,
         },
     )
 

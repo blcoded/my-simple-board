@@ -5,7 +5,7 @@ from backend.models import Priority, TaskStatus
 
 class AuthCredentials(BaseModel):
     email: str = Field(..., json_schema_extra={"example": "ada@example.com"})
-    password: str = Field(..., min_length=4, json_schema_extra={"example": "focus"})
+    password: str = Field(..., json_schema_extra={"example": "focus"})
 
 
 class UserResponse(BaseModel):
