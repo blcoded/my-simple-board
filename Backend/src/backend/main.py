@@ -1,7 +1,10 @@
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend.config import CORS_ORIGINS
 from backend.routers import auth, tasks
@@ -76,6 +79,34 @@ app.include_router(tasks.router)
 @app.get("/api/health", tags=["Health"])
 def health_check():
     return {"status": "ok", "service": "mini-kanban-backend"}
+
+
+# Static files and frontend SPA serving
+STATIC_DIR = os.getenv("STATIC_DIR", "")
+if not STATIC_DIR or not os.path.exists(STATIC_DIR):
+    for candidate in [
+        Path("/app/static"),
+        Path(__file__).resolve().parent.parent.parent / "static",
+        Path(__file__).resolve().parent.parent.parent.parent / "Frontend" / ".output" / "public",
+    ]:
+        if candidate.exists() and candidate.is_dir():
+            STATIC_DIR = str(candidate)
+            break
+
+if STATIC_DIR and os.path.exists(STATIC_DIR):
+    assets_path = os.path.join(STATIC_DIR, "assets")
+    if os.path.exists(assets_path):
+        app.mount("/assets", StaticFiles(directory=assets_path), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        file_path = os.path.join(STATIC_DIR, full_path)
+        if full_path and os.path.isfile(file_path):
+            return FileResponse(file_path)
+        index_file = os.path.join(STATIC_DIR, "index.html")
+        if os.path.isfile(index_file):
+            return FileResponse(index_file)
+        raise HTTPException(status_code=404, detail="Not Found")
 
 
 def main():

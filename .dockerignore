@@ -1,0 +1,26 @@
+# Version control
+.git
+.gitignore
+
+# Python / Backend
+Backend/.venv/
+Backend/.pytest_cache/
+Backend/kanban.db
+Backend/.env
+**/__pycache__/
+**/*.py[cod]
+**/*.pyo
+**/*.pyd
+
+# Node / Frontend
+Frontend/node_modules/
+Frontend/.output/
+Frontend/.wrangler/
+Frontend/.tanstack/
+Frontend/.lovable/
+Frontend/.env
+
+# Temporary and log files
+*.log
+.DS_Store
+Thumbs.db
