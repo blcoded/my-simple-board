@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := start
 
-.PHONY: help start dev run test sync clean frontend backend dev-backend dev-frontend
+.PHONY: help start dev run test sync clean frontend backend dev-backend dev-frontend build serve
 
 PORT ?= 8000
 HOST ?= 0.0.0.0
@@ -21,6 +21,12 @@ frontend:
 
 dev-frontend: frontend
 
+build:
+	cd Frontend && npm run build
+
+serve: build
+	cd Backend && uv run uvicorn backend.main:app --host $(HOST) --port $(PORT)
+
 run:
 	cd Backend && uv run uvicorn backend.main:app --host $(HOST) --port $(PORT)
 
@@ -38,12 +44,12 @@ help:
 	@echo "Mini Kanban Board - Management"
 	@echo ""
 	@echo "Available commands:"
-	@echo "  make            Start both backend and frontend development servers"
-	@echo "  make start      Start both backend and frontend development servers"
-	@echo "  make dev        Start both backend and frontend development servers"
-	@echo "  make backend    Run backend development server with auto-reload (port $(PORT))"
+	@echo "  make            Start backend (serving frontend) and frontend dev servers"
+	@echo "  make serve      Build frontend and run backend to serve both API & frontend"
+	@echo "  make build      Build frontend production assets"
+	@echo "  make backend    Run backend server with auto-reload (port $(PORT))"
 	@echo "  make frontend   Run frontend development server (Vite)"
-	@echo "  make run        Run backend server without auto-reload"
+	@echo "  make run        Run backend server directly without auto-reload"
 	@echo "  make test       Run full pytest test suite"
 	@echo "  make sync       Install and synchronize dependencies using uv and npm"
 	@echo "  make clean      Remove cache files and temporary artifacts"

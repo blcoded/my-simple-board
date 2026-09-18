@@ -21,7 +21,11 @@ const TOKEN_STORAGE_KEY = "kanban_auth_token";
 
 const getBaseUrl = (): string => {
   if (typeof import.meta !== "undefined" && import.meta.env && import.meta.env["VITE_API_URL"]) {
-    return (import.meta.env["VITE_API_URL"] as string).replace(/\/$/, "");
+    const envUrl = (import.meta.env["VITE_API_URL"] as string).trim().replace(/\/$/, "");
+    if (envUrl) return envUrl;
+  }
+  if (typeof window !== "undefined" && window.location && window.location.origin) {
+    return window.location.origin;
   }
   return "http://localhost:8000";
 };

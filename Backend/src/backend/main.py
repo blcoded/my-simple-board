@@ -100,12 +100,17 @@ if STATIC_DIR and os.path.exists(STATIC_DIR):
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        file_path = os.path.join(STATIC_DIR, full_path)
-        if full_path and os.path.isfile(file_path):
-            return FileResponse(file_path)
-        index_file = os.path.join(STATIC_DIR, "index.html")
-        if os.path.isfile(index_file):
-            return FileResponse(index_file)
+        try:
+            static_dir_path = Path(STATIC_DIR).resolve()
+            requested_path = (static_dir_path / full_path).resolve()
+            if full_path and requested_path.is_file() and static_dir_path in requested_path.parents:
+                return FileResponse(str(requested_path))
+        except Exception:
+            pass
+
+        index_file = Path(STATIC_DIR) / "index.html"
+        if index_file.is_file():
+            return FileResponse(str(index_file))
         raise HTTPException(status_code=404, detail="Not Found")
 
 

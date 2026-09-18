@@ -20,6 +20,8 @@ if "%TARGET%"=="" set TARGET=start
 
 if /i "%TARGET%"=="start" goto :target_start
 if /i "%TARGET%"=="dev" goto :target_start
+if /i "%TARGET%"=="serve" goto :target_serve
+if /i "%TARGET%"=="build" goto :target_build
 if /i "%TARGET%"=="backend" goto :target_backend
 if /i "%TARGET%"=="dev-backend" goto :target_backend
 if /i "%TARGET%"=="frontend" goto :target_frontend
@@ -48,6 +50,19 @@ exit /b %ERRORLEVEL%
 cd /d "%~dp0Frontend" && npm run dev
 exit /b %ERRORLEVEL%
 
+:target_build
+echo Building frontend static assets...
+cd /d "%~dp0Frontend" && npm run build
+exit /b %ERRORLEVEL%
+
+:target_serve
+echo Building frontend and starting backend to serve full app...
+cd /d "%~dp0Frontend" && npm run build
+set FRONT_ERR=%ERRORLEVEL%
+if %FRONT_ERR% neq 0 exit /b %FRONT_ERR%
+cd /d "%~dp0Backend" && uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000
+exit /b %ERRORLEVEL%
+
 :target_run
 cd /d "%~dp0Backend" && uv run uvicorn backend.main:app --host 0.0.0.0 --port 8000
 exit /b %ERRORLEVEL%
@@ -74,12 +89,12 @@ exit /b %ERRORLEVEL%
 echo Mini Kanban Board - Management
 echo.
 echo Available commands:
-echo   make            Start both backend and frontend development servers
-echo   make start      Start both backend and frontend development servers
-echo   make dev        Start both backend and frontend development servers
-echo   make backend    Run backend development server with auto-reload (port 8000)
+echo   make            Start backend (serving frontend) and frontend dev servers
+echo   make serve      Build frontend and run backend to serve both API and frontend
+echo   make build      Build frontend production assets
+echo   make backend    Run backend server with auto-reload (port 8000)
 echo   make frontend   Run frontend development server (Vite)
-echo   make run        Run backend server without auto-reload
+echo   make run        Run backend server directly without auto-reload
 echo   make test       Run full pytest test suite
 echo   make sync       Install and synchronize dependencies using uv and npm
 echo   make clean      Remove cache files and temporary artifacts
