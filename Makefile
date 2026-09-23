@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := start
 
-.PHONY: help start dev run test sync clean frontend backend dev-backend dev-frontend build serve
+.PHONY: help start dev run test sync clean frontend backend dev-backend dev-frontend build serve docker-build docker-run
 
 PORT ?= 8000
 HOST ?= 0.0.0.0
@@ -40,19 +40,27 @@ sync:
 clean:
 	cd Backend && uv run python -c "import shutil, glob; [shutil.rmtree(p, ignore_errors=True) for p in glob.glob('**/__pycache__', recursive=True) + glob.glob('**/.pytest_cache', recursive=True)]"
 
+docker-build:
+	docker build -t mini-kanban:latest .
+
+docker-run:
+	docker run -p $(PORT):8000 mini-kanban:latest
+
 help:
 	@echo "Mini Kanban Board - Management"
 	@echo ""
 	@echo "Available commands:"
-	@echo "  make            Start backend (serving frontend) and frontend dev servers"
-	@echo "  make serve      Build frontend and run backend to serve both API & frontend"
-	@echo "  make build      Build frontend production assets"
-	@echo "  make backend    Run backend server with auto-reload (port $(PORT))"
-	@echo "  make frontend   Run frontend development server (Vite)"
-	@echo "  make run        Run backend server directly without auto-reload"
-	@echo "  make test       Run full pytest test suite"
-	@echo "  make sync       Install and synchronize dependencies using uv and npm"
-	@echo "  make clean      Remove cache files and temporary artifacts"
-	@echo "  make help       Display this help message"
+	@echo "  make              Start backend (serving frontend) and frontend dev servers"
+	@echo "  make serve        Build frontend and run backend to serve both API & frontend"
+	@echo "  make build        Build frontend production assets"
+	@echo "  make backend      Run backend server with auto-reload (port $(PORT))"
+	@echo "  make frontend     Run frontend development server (Vite)"
+	@echo "  make run          Run backend server directly without auto-reload"
+	@echo "  make test         Run full pytest test suite"
+	@echo "  make sync         Install and synchronize dependencies using uv and npm"
+	@echo "  make clean        Remove cache files and temporary artifacts"
+	@echo "  make docker-build Build the multi-stage Docker image"
+	@echo "  make docker-run   Run the containerized application on port $(PORT)"
+	@echo "  make help         Display this help message"
 	@echo ""
 

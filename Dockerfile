@@ -5,7 +5,7 @@ FROM node:20-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
-# Install dependencies based on lockfile
+# Install dependencies based on package-lock.json
 COPY Frontend/package.json Frontend/package-lock.json ./
 RUN npm ci
 
@@ -21,7 +21,7 @@ RUN npm run build
 FROM python:3.11-slim
 
 # Install uv from official Astral image
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 WORKDIR /app
 
@@ -52,5 +52,9 @@ COPY --from=frontend-builder /app/frontend/.output/public /app/static
 
 EXPOSE 8000
 
-# Start the application server
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Health check to ensure the service is running and responsive
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:' + str(__import__('os').getenv('PORT', '8000')) + '/health').read()" || exit 1
+
+# Start the application server (Backend serves both REST API and Frontend SPA)
+CMD ["sh", "-c", "exec uvicorn backend.main:app --host ${HOST:-0.0.0.0} --port ${PORT:-8000}"]
