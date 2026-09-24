@@ -34,9 +34,44 @@ def normalize_url(url: str) -> str:
     return url
 
 
+def ensure_database_exists(target_url: str):
+    """If target database does not exist, connect to the default 'postgres' db and create it."""
+    from sqlalchemy.engine.url import make_url
+    url_obj = make_url(target_url)
+    if not url_obj.database or url_obj.database in ("postgres", "template1") or not url_obj.drivername.startswith("postgresql"):
+        return
+
+    # Try connecting to target first
+    try:
+        temp_engine = create_db_engine(target_url)
+        with temp_engine.connect():
+            return
+    except Exception as e:
+        err_msg = str(e).lower()
+        if "does not exist" not in err_msg:
+            return
+
+    # Attempt auto-creation via default postgres database
+    try:
+        admin_url = url_obj.set(database="postgres")
+        admin_engine = create_db_engine(str(admin_url))
+        with admin_engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
+            res = conn.exec_driver_sql(
+                "SELECT 1 FROM pg_database WHERE datname = :d", {"d": url_obj.database}
+            ).scalar()
+            if not res:
+                print(f"Target database '{url_obj.database}' does not exist. Creating it now...")
+                conn.exec_driver_sql(f'CREATE DATABASE "{url_obj.database}"')
+                print(f"Successfully created database '{url_obj.database}'.")
+    except Exception as err:
+        print(f"Note: Could not auto-create database '{url_obj.database}': {err}")
+
+
 def migrate(source_url: str, target_url: str, dry_run: bool = False):
     source_url = normalize_url(source_url)
     target_url = normalize_url(target_url)
+
+    ensure_database_exists(target_url)
 
     print(f"Connecting to source database: {source_url}")
     source_engine = create_db_engine(source_url)
