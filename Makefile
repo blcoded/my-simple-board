@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := start
 
-.PHONY: help start dev run test sync clean frontend backend dev-backend dev-frontend build serve docker-build docker-run
+.PHONY: help start dev run test test-integration sync clean frontend backend dev-backend dev-frontend build serve docker-build docker-run
 
 PORT ?= 8000
 HOST ?= 0.0.0.0
@@ -33,6 +33,9 @@ run:
 test:
 	cd Backend && uv run pytest
 
+test-integration:
+	uv run --directory Backend pytest ../tests/integration -v
+
 sync:
 	cd Backend && uv sync
 	cd Frontend && npm install
@@ -50,17 +53,18 @@ help:
 	@echo "Mini Kanban Board - Management"
 	@echo ""
 	@echo "Available commands:"
-	@echo "  make              Start backend (serving frontend) and frontend dev servers"
-	@echo "  make serve        Build frontend and run backend to serve both API & frontend"
-	@echo "  make build        Build frontend production assets"
-	@echo "  make backend      Run backend server with auto-reload (port $(PORT))"
-	@echo "  make frontend     Run frontend development server (Vite)"
-	@echo "  make run          Run backend server directly without auto-reload"
-	@echo "  make test         Run full pytest test suite"
-	@echo "  make sync         Install and synchronize dependencies using uv and npm"
-	@echo "  make clean        Remove cache files and temporary artifacts"
-	@echo "  make docker-build Build the multi-stage Docker image"
-	@echo "  make docker-run   Run the containerized application on port $(PORT)"
-	@echo "  make help         Display this help message"
+	@echo "  make                  Start backend (serving frontend) and frontend dev servers"
+	@echo "  make serve            Build frontend and run backend to serve both API & frontend"
+	@echo "  make build            Build frontend production assets"
+	@echo "  make backend          Run backend server with auto-reload (port $(PORT))"
+	@echo "  make frontend         Run frontend development server (Vite)"
+	@echo "  make run              Run backend server directly without auto-reload"
+	@echo "  make test             Run full unit pytest test suite"
+	@echo "  make test-integration Run integration tests against docker-compose stack"
+	@echo "  make sync             Install and synchronize dependencies using uv and npm"
+	@echo "  make clean            Remove cache files and temporary artifacts"
+	@echo "  make docker-build     Build the multi-stage Docker image"
+	@echo "  make docker-run       Run the containerized application on port $(PORT)"
+	@echo "  make help             Display this help message"
 	@echo ""
 

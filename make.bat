@@ -28,6 +28,7 @@ if /i "%TARGET%"=="frontend" goto :target_frontend
 if /i "%TARGET%"=="dev-frontend" goto :target_frontend
 if /i "%TARGET%"=="run" goto :target_run
 if /i "%TARGET%"=="test" goto :target_test
+if /i "%TARGET%"=="test-integration" goto :target_test_integration
 if /i "%TARGET%"=="sync" goto :target_sync
 if /i "%TARGET%"=="docker-build" goto :target_docker_build
 if /i "%TARGET%"=="docker-run" goto :target_docker_run
@@ -73,6 +74,10 @@ exit /b %ERRORLEVEL%
 cd /d "%~dp0Backend" && uv run pytest
 exit /b %ERRORLEVEL%
 
+:target_test_integration
+uv run --directory "%~dp0Backend" pytest "%~dp0tests\integration" -v
+exit /b %ERRORLEVEL%
+
 :target_sync
 echo Synchronizing Backend dependencies (uv sync)...
 cd /d "%~dp0Backend" && uv sync
@@ -106,9 +111,10 @@ echo   make serve        Build frontend and run backend to serve both API and fr
 echo   make build        Build frontend production assets
 echo   make backend      Run backend server with auto-reload (port 8000)
 echo   make frontend     Run frontend development server (Vite)
-echo   make run          Run backend server directly without auto-reload
-echo   make test         Run full pytest test suite
-echo   make sync         Install and synchronize dependencies using uv and npm
+echo   make run              Run backend server directly without auto-reload
+echo   make test             Run full unit pytest test suite
+echo   make test-integration Run integration tests against docker-compose stack
+echo   make sync             Install and synchronize dependencies using uv and npm
 echo   make docker-build Build the multi-stage Docker image
 echo   make docker-run   Run the containerized application on port 8000
 echo   make clean        Remove cache files and temporary artifacts
