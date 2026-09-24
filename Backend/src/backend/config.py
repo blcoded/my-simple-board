@@ -1,4 +1,28 @@
 import os
+from pathlib import Path
+
+
+def load_env() -> None:
+    """Load key-value pairs from .env into os.environ if not already set."""
+    backend_dir = Path(__file__).resolve().parent.parent.parent
+    for candidate in [backend_dir / ".env", backend_dir.parent / ".env"]:
+        if candidate.is_file():
+            try:
+                with open(candidate, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("#") or "=" not in line:
+                            continue
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip("'\"")
+                        if k and k not in os.environ:
+                            os.environ[k] = v
+            except Exception:
+                pass
+
+
+load_env()
 
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "mini-kanban-secret-jwt-key-2026-super-secure")
 JWT_ALGORITHM = "HS256"

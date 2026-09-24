@@ -54,14 +54,15 @@ def ensure_database_exists(target_url: str):
     # Attempt auto-creation via default postgres database
     try:
         admin_url = url_obj.set(database="postgres")
-        admin_engine = create_db_engine(str(admin_url))
+        admin_engine = create_db_engine(admin_url)
         with admin_engine.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
-            res = conn.exec_driver_sql(
-                "SELECT 1 FROM pg_database WHERE datname = :d", {"d": url_obj.database}
+            from sqlalchemy import text
+            res = conn.execute(
+                text("SELECT 1 FROM pg_database WHERE datname = :d"), {"d": url_obj.database}
             ).scalar()
             if not res:
                 print(f"Target database '{url_obj.database}' does not exist. Creating it now...")
-                conn.exec_driver_sql(f'CREATE DATABASE "{url_obj.database}"')
+                conn.execute(text(f'CREATE DATABASE "{url_obj.database}"'))
                 print(f"Successfully created database '{url_obj.database}'.")
     except Exception as err:
         print(f"Note: Could not auto-create database '{url_obj.database}': {err}")
