@@ -29,6 +29,7 @@ if /i "%TARGET%"=="dev-frontend" goto :target_frontend
 if /i "%TARGET%"=="run" goto :target_run
 if /i "%TARGET%"=="test" goto :target_test
 if /i "%TARGET%"=="test-integration" goto :target_test_integration
+if /i "%TARGET%"=="test-e2e" goto :target_test_e2e
 if /i "%TARGET%"=="sync" goto :target_sync
 if /i "%TARGET%"=="docker-build" goto :target_docker_build
 if /i "%TARGET%"=="docker-run" goto :target_docker_run
@@ -78,6 +79,10 @@ exit /b %ERRORLEVEL%
 uv run --directory "%~dp0Backend" pytest "%~dp0tests\integration" -v
 exit /b %ERRORLEVEL%
 
+:target_test_e2e
+cd /d "%~dp0Frontend" && npx.cmd playwright test --config="%~dp0playwright.config.ts"
+exit /b %ERRORLEVEL%
+
 :target_sync
 echo Synchronizing Backend dependencies (uv sync)...
 cd /d "%~dp0Backend" && uv sync
@@ -114,6 +119,7 @@ echo   make frontend     Run frontend development server (Vite)
 echo   make run              Run backend server directly without auto-reload
 echo   make test             Run full unit pytest test suite
 echo   make test-integration Run integration tests against docker-compose stack
+echo   make test-e2e         Run Playwright E2E browser tests against docker-compose stack
 echo   make sync             Install and synchronize dependencies using uv and npm
 echo   make docker-build Build the multi-stage Docker image
 echo   make docker-run   Run the containerized application on port 8000

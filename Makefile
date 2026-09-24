@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := start
 
-.PHONY: help start dev run test test-integration sync clean frontend backend dev-backend dev-frontend build serve docker-build docker-run
+.PHONY: help start dev run test test-integration test-e2e sync clean frontend backend dev-backend dev-frontend build serve docker-build docker-run
 
 PORT ?= 8000
 HOST ?= 0.0.0.0
@@ -36,6 +36,9 @@ test:
 test-integration:
 	uv run --directory Backend pytest ../tests/integration -v
 
+test-e2e:
+	cd Frontend && npx playwright test --config=../playwright.config.ts
+
 sync:
 	cd Backend && uv sync
 	cd Frontend && npm install
@@ -61,6 +64,7 @@ help:
 	@echo "  make run              Run backend server directly without auto-reload"
 	@echo "  make test             Run full unit pytest test suite"
 	@echo "  make test-integration Run integration tests against docker-compose stack"
+	@echo "  make test-e2e         Run Playwright E2E browser tests against docker-compose stack"
 	@echo "  make sync             Install and synchronize dependencies using uv and npm"
 	@echo "  make clean            Remove cache files and temporary artifacts"
 	@echo "  make docker-build     Build the multi-stage Docker image"
