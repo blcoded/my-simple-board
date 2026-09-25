@@ -34,12 +34,10 @@ test.describe('Kanban Board Full Lifecycle E2E', () => {
     // -------------------------------------------------------------------------
     await expect(page.getByText('Korda')).toBeVisible();
 
-    // Switch to register mode
-    const createAccountLink = page.getByRole('button', { name: 'Create an account', exact: true });
-    if (await createAccountLink.isVisible()) {
-      await createAccountLink.click();
-      await expect(page.getByRole('heading', { name: 'Start with a blank board.' })).toBeVisible();
-    }
+    // Verify registration screen starts empty with no pre-filled credentials
+    await expect(page.getByRole('heading', { name: 'Start with a blank board.' })).toBeVisible();
+    await expect(page.locator('input[type="email"]')).toHaveValue('');
+    await expect(page.locator('input[type="password"]')).toHaveValue('');
 
     await page.locator('input[type="email"]').fill(userEmail);
     await page.locator('input[type="password"]').fill(userPassword);

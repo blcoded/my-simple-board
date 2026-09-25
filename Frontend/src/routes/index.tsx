@@ -47,7 +47,7 @@ function KordaApp() {
   const [user, setUser] = useState<{ id: string; email: string } | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authMode, setAuthMode] = useState<"login" | "register">("register");
   const [search, setSearch] = useState("");
   const [priorityFilter, setPriorityFilter] = useState<Priority | "all">("all");
   const [dueFilter, setDueFilter] = useState<DueFilter>("all");
@@ -214,7 +214,7 @@ function KordaApp() {
         </section>
 
         <footer className="mt-8 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-          <span>Mock backend · {tasks.length} tasks on this board</span>
+          <span>Personal Kanban · {tasks.length} tasks on this board</span>
           <span>{openTasks} open · {doneTasks} done</span>
         </footer>
       </div>
@@ -322,8 +322,8 @@ function TaskDialog({ state, onOpenChange, onSaved }: { state: { mode: "create" 
 }
 
 function AuthScreen({ mode, onModeChange, onSignedIn }: { mode: "login" | "register"; onModeChange: (mode: "login" | "register") => void; onSignedIn: (user: { id: string; email: string }) => void }) {
-  const [email, setEmail] = useState("ada@example.com");
-  const [password, setPassword] = useState("focus");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   async function submit(event: React.FormEvent) {
     event.preventDefault(); setBusy(true);
@@ -346,12 +346,42 @@ function AuthScreen({ mode, onModeChange, onSignedIn }: { mode: "login" | "regis
           <h1 className="mt-3 font-display text-4xl font-bold tracking-tight">{mode === "login" ? "Back to focus." : "Start with a blank board."}</h1>
           <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{mode === "login" ? "Sign in to pick up where you left off." : "Create a simple space for the work in front of you."}</p>
           <form onSubmit={submit} className="mt-7 flex flex-col gap-4">
-            <Field label="Email"><Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></Field>
-            <Field label="Password"><Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={4} /></Field>
+            <Field label="Email">
+              <Input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+                required
+                autoComplete={mode === "login" ? "username" : "email"}
+              />
+            </Field>
+            <Field label="Password">
+              <Input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder={mode === "login" ? "Enter your password" : "Create a password (min. 4 chars)"}
+                required
+                minLength={4}
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
+              />
+            </Field>
             <Button type="submit" className="mt-2 w-full" disabled={busy}>{busy ? "Loading…" : mode === "login" ? "Sign in" : "Create account"}</Button>
           </form>
           <div className="mt-6 border-t border-border pt-5 text-center text-sm text-muted-foreground">
-            {mode === "login" ? "New here?" : "Already have an account?"} <Button variant="link" type="button" className="h-auto p-0" onClick={() => onModeChange(mode === "login" ? "register" : "login")}>{mode === "login" ? "Create an account" : "Sign in instead"}</Button>
+            {mode === "login" ? "New here?" : "Already have an account?"}{" "}
+            <Button
+              variant="link"
+              type="button"
+              className="h-auto p-0"
+              onClick={() => {
+                setPassword("");
+                onModeChange(mode === "login" ? "register" : "login");
+              }}
+            >
+              {mode === "login" ? "Create an account" : "Sign in instead"}
+            </Button>
           </div>
           <p className="mt-5 text-center text-xs text-muted-foreground">FastAPI backend authentication</p>
         </div>
