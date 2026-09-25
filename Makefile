@@ -37,7 +37,7 @@ test-integration:
 	uv run --directory Backend pytest ../tests/integration -v
 
 test-e2e:
-	cd Frontend && npx playwright test --config=../playwright.config.ts
+	NODE_PATH=Frontend/node_modules node Frontend/node_modules/@playwright/test/cli.js test --config=playwright.config.ts
 
 sync:
 	cd Backend && uv sync

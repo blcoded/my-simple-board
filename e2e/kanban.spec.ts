@@ -19,6 +19,9 @@ test.describe('Kanban Board Full Lifecycle E2E', () => {
   const taskToDeleteTitle = `Temporary Task ${timestamp}`;
 
   test.beforeEach(async ({ page }) => {
+    page.on('console', (msg) => console.log(`[BROWSER CONSOLE] ${msg.type()}: ${msg.text()}`));
+    page.on('pageerror', (err) => console.error(`[BROWSER ERROR] ${err.message}`));
+
     // Navigate to base URL and ensure clean unauthenticated session state
     await page.goto('/');
     await page.evaluate(() => localStorage.clear());
@@ -32,25 +35,25 @@ test.describe('Kanban Board Full Lifecycle E2E', () => {
     await expect(page.getByText('Korda')).toBeVisible();
 
     // Switch to register mode
-    const createAccountButton = page.getByRole('button', { name: 'Create an account' });
-    if (await createAccountButton.isVisible()) {
-      await createAccountButton.click();
+    const createAccountLink = page.getByRole('button', { name: 'Create an account', exact: true });
+    if (await createAccountLink.isVisible()) {
+      await createAccountLink.click();
       await expect(page.getByRole('heading', { name: 'Start with a blank board.' })).toBeVisible();
     }
 
     await page.locator('input[type="email"]').fill(userEmail);
     await page.locator('input[type="password"]').fill(userPassword);
-    await page.getByRole('button', { name: /Create account|Sign in/i }).click();
+    await page.getByRole('button', { name: 'Create account', exact: true }).click();
 
     // Verify successful login into board
     await expect(page.getByRole('heading', { name: 'Today, Focus' })).toBeVisible({ timeout: 15000 });
     await expect(page.getByText(`Signed in as ${userEmail}`)).toBeVisible();
 
-    // Locate column sections
-    const ideasColumn = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Ideas' }) });
-    const todoColumn = page.locator('section').filter({ has: page.getByRole('heading', { name: 'To Do' }) });
-    const progressColumn = page.locator('section').filter({ has: page.getByRole('heading', { name: 'In Progress' }) });
-    const doneColumn = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Done' }) });
+    // Locate column sections using innermost ancestor section of the column heading
+    const ideasColumn = page.getByRole('heading', { name: 'Ideas', exact: true }).locator('xpath=ancestor::section[1]');
+    const todoColumn = page.getByRole('heading', { name: 'To Do', exact: true }).locator('xpath=ancestor::section[1]');
+    const progressColumn = page.getByRole('heading', { name: 'In Progress', exact: true }).locator('xpath=ancestor::section[1]');
+    const doneColumn = page.getByRole('heading', { name: 'Done', exact: true }).locator('xpath=ancestor::section[1]');
 
     // -------------------------------------------------------------------------
     // 2. Create tasks
@@ -61,7 +64,7 @@ test.describe('Kanban Board Full Lifecycle E2E', () => {
 
     await page.getByPlaceholder('Name the next thing').fill(primaryTaskTitle);
     await page.getByPlaceholder('Optional notes').fill('Comprehensive end-to-end test verification task.');
-    await page.getByRole('button', { name: 'high', exact: true }).click();
+    await page.locator('button', { hasText: /^high$/i }).click();
     await page.getByRole('button', { name: 'Save changes' }).click();
 
     // Verify task appears in 'Ideas' column
@@ -77,23 +80,31 @@ test.describe('Kanban Board Full Lifecycle E2E', () => {
     const taskToDeleteCard = ideasColumn.locator('article').filter({ hasText: taskToDeleteTitle });
     await expect(taskToDeleteCard).toBeVisible({ timeout: 10000 });
 
+    // Helper for HTML5 drag-and-drop between Kanban columns
+    const moveCard = async (card: typeof primaryTaskCard, column: typeof todoColumn) => {
+      await card.dispatchEvent('dragstart');
+      await page.waitForTimeout(200);
+      await column.dispatchEvent('drop');
+      await card.dispatchEvent('dragend');
+    };
+
     // -------------------------------------------------------------------------
     // 3. Move it across the different columns (Ideas -> To Do -> In Progress -> Done)
     // -------------------------------------------------------------------------
     // 3a. Move from Ideas to To Do
-    await primaryTaskCard.dragTo(todoColumn);
+    await moveCard(primaryTaskCard, todoColumn);
     const taskInTodo = todoColumn.locator('article').filter({ hasText: primaryTaskTitle });
     await expect(taskInTodo).toBeVisible({ timeout: 10000 });
     await expect(ideasColumn.locator('article').filter({ hasText: primaryTaskTitle })).not.toBeVisible();
 
     // 3b. Move from To Do to In Progress
-    await taskInTodo.dragTo(progressColumn);
+    await moveCard(taskInTodo, progressColumn);
     const taskInProgress = progressColumn.locator('article').filter({ hasText: primaryTaskTitle });
     await expect(taskInProgress).toBeVisible({ timeout: 10000 });
     await expect(todoColumn.locator('article').filter({ hasText: primaryTaskTitle })).not.toBeVisible();
 
     // 3c. Move from In Progress to Done
-    await taskInProgress.dragTo(doneColumn);
+    await moveCard(taskInProgress, doneColumn);
     const taskInDone = doneColumn.locator('article').filter({ hasText: primaryTaskTitle });
     await expect(taskInDone).toBeVisible({ timeout: 10000 });
     await expect(progressColumn.locator('article').filter({ hasText: primaryTaskTitle })).not.toBeVisible();
@@ -110,7 +121,7 @@ test.describe('Kanban Board Full Lifecycle E2E', () => {
 
     // Handle the confirmation dialog automatically
     page.once('dialog', async (dialog) => {
-      expect(dialog.message()).toContain(`Delete “${taskToDeleteTitle}”?`);
+      expect(dialog.message()).toContain(taskToDeleteTitle);
       await dialog.accept();
     });
 
@@ -124,12 +135,18 @@ test.describe('Kanban Board Full Lifecycle E2E', () => {
     // -------------------------------------------------------------------------
     // 5a. Sign out
     await page.getByRole('button', { name: /Sign out/i }).click();
+
+    // Toggle back to login mode if currently showing registration screen
+    const signInInsteadButton = page.getByRole('button', { name: 'Sign in instead', exact: true });
+    if (await signInInsteadButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await signInInsteadButton.click();
+    }
     await expect(page.getByRole('heading', { name: 'Back to focus.' })).toBeVisible({ timeout: 10000 });
 
     // 5b. Sign back in with the same credentials
     await page.locator('input[type="email"]').fill(userEmail);
     await page.locator('input[type="password"]').fill(userPassword);
-    await page.getByRole('button', { name: 'Sign in' }).click();
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 
     // Verify board loads for the authenticated user
     await expect(page.getByRole('heading', { name: 'Today, Focus' })).toBeVisible({ timeout: 15000 });

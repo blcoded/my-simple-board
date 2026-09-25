@@ -26,3 +26,7 @@ build/
 *.db-journal
 *.sqlite
 *.sqlite3
+
+# Playwright & Testing
+test-results/
+playwright-report/

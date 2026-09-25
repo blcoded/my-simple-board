@@ -1,7 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const publicDir = path.resolve(".output", "public");
+const publicDir = fs.existsSync(path.resolve(".output", "public"))
+  ? path.resolve(".output", "public")
+  : path.resolve("Frontend", ".output", "public");
 const assetsDir = path.join(publicDir, "assets");
 const indexPath = path.join(publicDir, "index.html");
 
@@ -22,6 +24,13 @@ if (fs.existsSync(publicDir)) {
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      window.$_TSR = window.$_TSR || {
+        buffer: [],
+        router: { matches: [] },
+        h: () => {}
+      };
+    </script>
     ${js ? `<script type="module" src="/assets/${js}"></script>` : ""}
   </body>
 </html>

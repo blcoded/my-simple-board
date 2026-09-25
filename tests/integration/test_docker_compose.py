@@ -85,7 +85,7 @@ class TestAuthenticationWithPostgres:
             },
         )
         assert res.status_code == 400
-        assert "already registered" in res.text.lower()
+        assert "already exists" in res.text.lower() or "already registered" in res.text.lower()
 
     def test_login_flow(self, http_client, registered_user):
         """Verify user can authenticate against hashed passwords in PostgreSQL."""

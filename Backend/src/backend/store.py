@@ -49,13 +49,49 @@ class DatabaseStore:
             bind=self.engine,
         )
         self._is_initialized = False
-        self.init_db()
-        self._is_initialized = True
+        try:
+            self.init_db()
+            self._is_initialized = True
+        except Exception as e:
+            # Allow import to succeed if DB is starting; lifespan will retry
+            print(f"Warning: Database initialization deferred at import time: {e}")
 
-    def init_db(self) -> None:
-        Base.metadata.create_all(bind=self.engine)
-        with self.session_factory() as session:
-            self._seed(session)
+    def init_db(self, max_retries: int = 15, retry_delay: float = 2.0) -> None:
+        """Initialize database tables with connection retries for container networks."""
+        import time
+
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            try:
+                Base.metadata.create_all(bind=self.engine)
+                with self.session_factory() as session:
+                    self._seed(session)
+                self._is_initialized = True
+                return
+            except Exception as e:
+                last_error = e
+                err_msg = str(e).lower()
+                is_transient = any(
+                    x in err_msg
+                    for x in [
+                        "could not translate host name",
+                        "temporary failure in name resolution",
+                        "connection refused",
+                        "operationalerror",
+                        "the database system is starting up",
+                        "server closed the connection unexpectedly",
+                    ]
+                )
+                if is_transient and attempt < max_retries:
+                    print(
+                        f"Waiting for database connection (attempt {attempt}/{max_retries}): {e}. Retrying in {retry_delay}s..."
+                    )
+                    time.sleep(retry_delay)
+                else:
+                    raise e
+
+        if last_error:
+            raise last_error
 
     def reset_db(self) -> None:
         Base.metadata.drop_all(bind=self.engine)

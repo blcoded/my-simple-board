@@ -80,7 +80,8 @@ uv run --directory "%~dp0Backend" pytest "%~dp0tests\integration" -v
 exit /b %ERRORLEVEL%
 
 :target_test_e2e
-cd /d "%~dp0Frontend" && npx.cmd playwright test --config="%~dp0playwright.config.ts"
+set "NODE_PATH=%~dp0Frontend\node_modules;%NODE_PATH%"
+node "%~dp0Frontend\node_modules\@playwright\test\cli.js" test --config="%~dp0playwright.config.ts"
 exit /b %ERRORLEVEL%
 
 :target_sync
