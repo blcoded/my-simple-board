@@ -1,0 +1,216 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ============================================================================
+  # 1. Parallel Unit Tests: Backend
+  # ============================================================================
+  backend-tests:
+    name: Backend Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "Backend/uv.lock"
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install backend dependencies
+        run: uv sync --directory Backend
+
+      - name: Run backend pytest suite
+        run: uv run --directory Backend pytest -v
+
+  # ============================================================================
+  # 2. Parallel Unit Tests: Frontend
+  # ============================================================================
+  frontend-tests:
+    name: Frontend Typecheck & Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: "Frontend/package-lock.json"
+
+      - name: Install frontend dependencies
+        run: |
+          cd Frontend
+          npm ci
+
+      - name: Run frontend typecheck and build test
+        run: |
+          cd Frontend
+          npm test
+
+  # ============================================================================
+  # 3. Docker Compose Stack: Integration and E2E Tests
+  # ============================================================================
+  docker-tests:
+    name: Docker Stack Integration & E2E Tests
+    runs-on: ubuntu-latest
+    needs: [backend-tests, frontend-tests]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "Backend/uv.lock"
+
+      - name: Setup Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: "Frontend/package-lock.json"
+
+      - name: Install backend & frontend dependencies
+        run: |
+          uv sync --directory Backend
+          cd Frontend && npm ci
+
+      - name: Install Playwright browsers & dependencies
+        run: |
+          cd Frontend
+          npx playwright install --with-deps chromium
+
+      - name: Build and Start Docker Compose Stack
+        run: |
+          docker compose up -d --build
+
+      - name: Wait for services to become healthy
+        run: |
+          echo "Waiting for app service at http://localhost:8000/health..."
+          timeout 120s bash -c 'until curl -sf http://localhost:8000/health; do echo "Waiting for backend..."; sleep 3; done'
+          echo "Stack is healthy and ready for tests."
+
+      - name: Run Integration Tests against Docker Compose
+        run: |
+          uv run --directory Backend pytest ../tests/integration -v
+
+      - name: Run Playwright E2E Tests against Docker Compose
+        env:
+          CI: "true"
+          NODE_PATH: "Frontend/node_modules"
+          APP_URL: "http://localhost:8000"
+        run: |
+          node Frontend/node_modules/@playwright/test/cli.js test --config=playwright.config.ts
+
+      - name: Upload E2E Artifacts on Failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            test-results/
+            playwright-report/
+
+      - name: Shut down Docker Compose Stack
+        if: always()
+        run: |
+          docker compose logs kanban-app --tail=100
+          docker compose down -v
+
+  # ============================================================================
+  # 4. Deploy to Render & Validate Health Endpoint
+  # ============================================================================
+  deploy:
+    name: Deploy to Render & Verify Health
+    runs-on: ubuntu-latest
+    needs: [docker-tests]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    steps:
+      - name: Validate Deployment Configuration
+        run: |
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" ]; then
+            echo "::error::Secret RENDER_DEPLOY_HOOK_URL is not set in GitHub repository secrets."
+            echo "To configure: In GitHub repo -> Settings -> Secrets and variables -> Actions -> New repository secret -> Name: RENDER_DEPLOY_HOOK_URL"
+            exit 1
+          fi
+
+          if [ -z "${{ secrets.RENDER_APP_URL }}" ]; then
+            echo "::error::Secret RENDER_APP_URL is not set in GitHub repository secrets."
+            echo "To configure: In GitHub repo -> Settings -> Secrets and variables -> Actions -> New repository secret -> Name: RENDER_APP_URL (e.g. https://your-app.onrender.com)"
+            exit 1
+          fi
+
+      - name: Trigger Render Deploy Hook
+        run: |
+          echo "Triggering deployment on Render via Deploy Hook..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}")
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+            echo "Render deployment triggered successfully (HTTP $HTTP_STATUS)."
+          else
+            echo "Failed to trigger Render deployment. HTTP status: $HTTP_STATUS"
+            exit 1
+          fi
+
+      - name: Validate Deployment via Health Endpoint
+        run: |
+          BASE_URL="${{ secrets.RENDER_APP_URL }}"
+          # Strip trailing slash if present
+          BASE_URL="${BASE_URL%/}"
+          HEALTH_URL="${BASE_URL}/health"
+
+          echo "Validating deployment health at: ${HEALTH_URL}"
+          echo "Waiting 30s before polling to allow Render to start building..."
+          sleep 30
+
+          MAX_ATTEMPTS=40
+          ATTEMPT=0
+          SUCCESS=false
+
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            ATTEMPT=$((ATTEMPT + 1))
+            RESPONSE=$(curl -s -w "\n%{http_code}" "$HEALTH_URL" 2>&1 || true)
+            HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+            BODY=$(echo "$RESPONSE" | sed '$d')
+
+            echo "[$ATTEMPT/$MAX_ATTEMPTS] HTTP $HTTP_CODE | Response: $BODY"
+
+            if [ "$HTTP_CODE" = "200" ] && echo "$BODY" | grep -q '"status":"ok"'; then
+              echo "Deployment health verified! Service is active and responding with status: ok."
+              SUCCESS=true
+              break
+            fi
+
+            sleep 15
+          done
+
+          if [ "$SUCCESS" != "true" ]; then
+            echo "::error::Deployment verification timed out after $((MAX_ATTEMPTS * 15))s. Health endpoint did not return healthy response."
+            exit 1
+          fi

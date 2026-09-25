@@ -18,8 +18,8 @@ export default defineConfig({
     baseURL: process.env.APP_URL || 'http://localhost:8000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    // Use installed system Chrome or Edge on Windows to avoid external downloads
-    channel: process.env.PLAYWRIGHT_CHANNEL || 'chrome',
+    // Use bundled Chromium in CI environments, or local system Chrome when running locally
+    channel: process.env.PLAYWRIGHT_CHANNEL || (process.env.CI ? undefined : 'chrome'),
     headless: true,
   },
   projects: [
@@ -27,7 +27,7 @@ export default defineConfig({
       name: 'chromium',
       use: {
         ...devices['Desktop Chrome'],
-        channel: process.env.PLAYWRIGHT_CHANNEL || 'chrome',
+        channel: process.env.PLAYWRIGHT_CHANNEL || (process.env.CI ? undefined : 'chrome'),
       },
     },
   ],
