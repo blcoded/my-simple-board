@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { apiClient, type Priority, type Task, type TaskStatus } from "@/lib/api-client";
 
 export const Route = createFileRoute("/")({
@@ -146,12 +147,13 @@ function KordaApp() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-[1440px] px-5 py-6 sm:px-8 lg:px-10 lg:py-8">
-        <header className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-foreground pb-5">
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border pb-5">
           <div className="flex items-center gap-3">
             <div className="grid size-9 place-items-center rounded-md bg-primary font-display text-lg font-bold text-primary-foreground">K</div>
             <span className="font-display text-sm font-semibold uppercase tracking-[0.2em]">Korda</span>
           </div>
-          <div className="flex items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <ThemeToggle />
             <span className="hidden text-sm text-muted-foreground sm:inline">Signed in as {user.email}</span>
             <div className="grid size-8 place-items-center rounded-full bg-foreground text-xs font-semibold text-background">{initials(user.email)}</div>
             <Button variant="ghost" size="sm" className="gap-1.5 px-1.5 text-muted-foreground hover:text-foreground" onClick={handleSignOut}>
@@ -329,7 +331,33 @@ function AuthScreen({ mode, onModeChange, onSignedIn }: { mode: "login" | "regis
     catch (error) { toast.error(error instanceof Error ? error.message : "Could not sign you in."); }
     finally { setBusy(false); }
   }
-  return <main className="flex min-h-screen items-center justify-center bg-background px-5 py-10"><div className="w-full max-w-md"><div className="mb-8 flex items-center gap-3"><div className="grid size-9 place-items-center rounded-md bg-primary font-display text-lg font-bold text-primary-foreground">K</div><span className="font-display text-sm font-semibold uppercase tracking-[0.2em]">Korda</span></div><div className="rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8"><p className="text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground">Personal board</p><h1 className="mt-3 font-display text-4xl font-bold tracking-tight">{mode === "login" ? "Back to focus." : "Start with a blank board."}</h1><p className="mt-3 text-sm leading-relaxed text-muted-foreground">{mode === "login" ? "Sign in to pick up where you left off." : "Create a simple space for the work in front of you."}</p><form onSubmit={submit} className="mt-7 flex flex-col gap-4"><Field label="Email"><Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></Field><Field label="Password"><Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={4} /></Field><Button type="submit" className="mt-2 w-full" disabled={busy}>{busy ? "Loading…" : mode === "login" ? "Sign in" : "Create account"}</Button></form><div className="mt-6 border-t border-border pt-5 text-center text-sm text-muted-foreground">{mode === "login" ? "New here?" : "Already have an account?"} <Button variant="link" type="button" className="h-auto p-0" onClick={() => onModeChange(mode === "login" ? "register" : "login")}>{mode === "login" ? "Create an account" : "Sign in instead"}</Button></div><p className="mt-5 text-center text-xs text-muted-foreground">FastAPI backend authentication</p></div></div></main>;
+  return (
+    <main className="relative flex min-h-screen items-center justify-center bg-background px-5 py-10 text-foreground">
+      <div className="absolute top-5 right-5 sm:top-8 sm:right-8">
+        <ThemeToggle />
+      </div>
+      <div className="w-full max-w-md">
+        <div className="mb-8 flex items-center gap-3">
+          <div className="grid size-9 place-items-center rounded-md bg-primary font-display text-lg font-bold text-primary-foreground">K</div>
+          <span className="font-display text-sm font-semibold uppercase tracking-[0.2em]">Korda</span>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-6 shadow-sm sm:p-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-muted-foreground">Personal board</p>
+          <h1 className="mt-3 font-display text-4xl font-bold tracking-tight">{mode === "login" ? "Back to focus." : "Start with a blank board."}</h1>
+          <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{mode === "login" ? "Sign in to pick up where you left off." : "Create a simple space for the work in front of you."}</p>
+          <form onSubmit={submit} className="mt-7 flex flex-col gap-4">
+            <Field label="Email"><Input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></Field>
+            <Field label="Password"><Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={4} /></Field>
+            <Button type="submit" className="mt-2 w-full" disabled={busy}>{busy ? "Loading…" : mode === "login" ? "Sign in" : "Create account"}</Button>
+          </form>
+          <div className="mt-6 border-t border-border pt-5 text-center text-sm text-muted-foreground">
+            {mode === "login" ? "New here?" : "Already have an account?"} <Button variant="link" type="button" className="h-auto p-0" onClick={() => onModeChange(mode === "login" ? "register" : "login")}>{mode === "login" ? "Create an account" : "Sign in instead"}</Button>
+          </div>
+          <p className="mt-5 text-center text-xs text-muted-foreground">FastAPI backend authentication</p>
+        </div>
+      </div>
+    </main>
+  );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</span>{children}</label>; }

@@ -21,6 +21,18 @@ if (fs.existsSync(publicDir)) {
     <meta name="description" content="A focused personal Kanban board for organizing tasks from idea to done." />
     ${css ? `<link rel="stylesheet" href="/assets/${css}" />` : ""}
     <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+    <script>
+      (function() {
+        try {
+          var t = localStorage.getItem('korda-theme');
+          if (t === 'dark' || (!t && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+          } else {
+            document.documentElement.classList.remove('dark');
+          }
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

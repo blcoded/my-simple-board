@@ -164,4 +164,34 @@ test.describe('Kanban Board Full Lifecycle E2E', () => {
     await expect(todoColumn.locator('article').filter({ hasText: primaryTaskTitle })).not.toBeVisible();
     await expect(progressColumn.locator('article').filter({ hasText: primaryTaskTitle })).not.toBeVisible();
   });
+
+  test('User can switch between light and dark modes with persistent preference', async ({ page }) => {
+    const htmlLocator = page.locator('html');
+    const themeToggle = page.getByTestId('theme-toggle');
+
+    // 1. Theme toggle is accessible on the auth screen
+    await expect(themeToggle).toBeVisible();
+
+    // 2. Click to toggle mode to Dark
+    await themeToggle.click();
+    await expect(htmlLocator).toHaveClass(/dark/);
+    await expect(themeToggle).toContainText('Dark');
+
+    // 3. Verify localStorage persistence
+    const storedTheme = await page.evaluate(() => localStorage.getItem('korda-theme'));
+    expect(storedTheme).toBe('dark');
+
+    // 4. Reload page and verify persisted dark mode remains applied
+    await page.reload();
+    await expect(htmlLocator).toHaveClass(/dark/);
+    await expect(page.getByTestId('theme-toggle')).toContainText('Dark');
+
+    // 5. Toggle back to Light mode
+    await page.getByTestId('theme-toggle').click();
+    await expect(htmlLocator).not.toHaveClass(/dark/);
+    await expect(page.getByTestId('theme-toggle')).toContainText('Light');
+
+    const updatedTheme = await page.evaluate(() => localStorage.getItem('korda-theme'));
+    expect(updatedTheme).toBe('light');
+  });
 });
