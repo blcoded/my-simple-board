@@ -142,9 +142,9 @@ jobs:
       - name: Dump Docker Logs on Failure
         if: failure()
         run: |
-          echo "=== kanban-app logs ==="
-          docker compose logs kanban-app --tail=150
-          echo "=== kanban-postgres logs ==="
+          echo "=== app service logs ==="
+          docker compose logs app --tail=150
+          echo "=== postgres service logs ==="
           docker compose logs postgres --tail=50
 
       - name: Upload E2E Artifacts on Failure

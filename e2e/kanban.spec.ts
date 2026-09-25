@@ -133,12 +133,13 @@ test.describe('Kanban Board Full Lifecycle E2E', () => {
     // -------------------------------------------------------------------------
     // 5. Log out and login back and ensure state didn't reset or change
     // -------------------------------------------------------------------------
-    // 5a. Sign out
+    // 5a. Sign out and wait for auth screen to mount
     await page.getByRole('button', { name: /Sign out/i }).click();
+    await expect(page.locator('input[type="email"]')).toBeVisible({ timeout: 15000 });
 
     // Toggle back to login mode if currently showing registration screen
     const signInInsteadButton = page.getByRole('button', { name: 'Sign in instead', exact: true });
-    if (await signInInsteadButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+    if (await signInInsteadButton.isVisible()) {
       await signInInsteadButton.click();
     }
     await expect(page.getByRole('heading', { name: 'Back to focus.' })).toBeVisible({ timeout: 10000 });
