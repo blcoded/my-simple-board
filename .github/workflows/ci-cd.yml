@@ -107,14 +107,24 @@ jobs:
           cd Frontend
           npx playwright install --with-deps chromium
 
+      - name: Stop host PostgreSQL if running
+        run: |
+          sudo systemctl stop postgresql.service || true
+
       - name: Build and Start Docker Compose Stack
+        env:
+          POSTGRES_PORT: "5432"
         run: |
           docker compose up -d --build
 
       - name: Wait for services to become healthy
         run: |
           echo "Waiting for app service at http://localhost:8000/health..."
-          timeout 120s bash -c 'until curl -sf http://localhost:8000/health; do echo "Waiting for backend..."; sleep 3; done'
+          if ! timeout 120s bash -c 'until curl -sf http://localhost:8000/health; do echo "Waiting for backend..."; sleep 3; done'; then
+            echo "::error::App service failed to become healthy within 120s. Dumping container logs:"
+            docker compose logs
+            exit 1
+          fi
           echo "Stack is healthy and ready for tests."
 
       - name: Run Integration Tests against Docker Compose
@@ -124,10 +134,18 @@ jobs:
       - name: Run Playwright E2E Tests against Docker Compose
         env:
           CI: "true"
-          NODE_PATH: "Frontend/node_modules"
+          NODE_PATH: "${{ github.workspace }}/Frontend/node_modules"
           APP_URL: "http://localhost:8000"
         run: |
           node Frontend/node_modules/@playwright/test/cli.js test --config=playwright.config.ts
+
+      - name: Dump Docker Logs on Failure
+        if: failure()
+        run: |
+          echo "=== kanban-app logs ==="
+          docker compose logs kanban-app --tail=150
+          echo "=== kanban-postgres logs ==="
+          docker compose logs postgres --tail=50
 
       - name: Upload E2E Artifacts on Failure
         if: failure()
@@ -141,7 +159,6 @@ jobs:
       - name: Shut down Docker Compose Stack
         if: always()
         run: |
-          docker compose logs kanban-app --tail=100
           docker compose down -v
 
   # ============================================================================
